@@ -1,0 +1,82 @@
+# Claude Code CLI settings
+.claude/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency directories (for future implementation)
+node_modules/
+venv/
+env/
+.env
+.env.local
+.env.*.local
+
+# Build outputs (for future implementation)
+dist/
+build/
+target/
+*.jar
+*.war
+*.class
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+
+# Secrets and credentials
+*.key
+*.pem
+credentials.json
+secrets.yaml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Java/Kotlin
+*.class
+.gradle/
+gradle-app.setting
+.gradletasknamecache
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+local.properties
+.gradle/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# React/Node
+.next/
+out/
+.nuxt/
+.cache/
+.parcel-cache/
