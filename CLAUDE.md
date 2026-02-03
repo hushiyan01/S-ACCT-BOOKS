@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-S-ACC-Books - A shared family accounting book system for tracking personal and group expenses, incomes, and asset changes. Family members log daily expenses/incomes via mobile app, and the backend aggregates data for both personal and family-wide financial views.
+S-ACC-Books - A shared family accounting book system for tracking personal and group expenses and incomes. Family members log daily expenses/incomes via mobile app, and the backend aggregates data for both personal and family-wide financial views.
 
 **Components:**
 - Frontend: Android app using Jetpack Compose (initial release)
@@ -24,7 +24,6 @@ This is a greenfield project in planning phase. No code has been implemented yet
 - `users` - Group members with roles (admin, member)
 - `transactions` - Income/expense records with categories
 - `budgets` - Spending limits (optional)
-- `assets` - Savings, investments tracking (optional)
 
 **Key Design Considerations:**
 - JWT-based authentication with refresh tokens

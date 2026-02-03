@@ -1,6 +1,6 @@
 # S-ACCT-BOOKS
 
-A shared family accounting book system for tracking personal and group expenses, incomes, and asset changes.
+A shared family accounting book system for tracking personal and group expenses and incomes.
 
 ## 📋 Project Status
 
@@ -95,7 +95,7 @@ S-ACCT-BOOKS enables families and small groups to collaboratively track finances
          │  - Groups            │
          │  - Users             │
          │  - Transactions      │
-         │  - Budgets/Assets    │
+         │  - Budgets           │
          └──────────────────────┘
 
          ┌──────────────────────┐

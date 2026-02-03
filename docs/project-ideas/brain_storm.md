@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A shared family accounting book system for tracking personal and group expenses, incomes, and asset changes.
+A shared family accounting book system for tracking personal and group expenses and incomes.
 
 **Components:**
 - Frontend: Android app (initial release)
@@ -55,15 +55,6 @@ A shared family accounting book system for tracking personal and group expenses,
    - `limit_amount`
    - `period` (daily, weekly, monthly)
    - `created_at`
-
-5. **`assets`** (for tracking savings, investments, etc.)
-   - `id` (PK)
-   - `user_id` (FK to users)
-   - `asset_type` (savings, investment, property)
-   - `name`
-   - `value`
-   - `currency`
-   - `updated_at`
 
 ### API Endpoints (Ideas)
 
