@@ -127,6 +127,18 @@ Enter group name, currency
 Success → Redirect to Dashboard
 ```
 
+```mermaid
+flowchart TD
+    A[START] --> B[Registration Screen]
+    B --> C[Enter email, password, name]
+    C --> D{Create New Group or Join Existing?}
+    D -->|Create New| E[Enter group name, currency]
+    D -->|Join Existing| F[Enter invite code]
+    E --> G[Success]
+    F --> G
+    G --> H[Redirect to Dashboard]
+```
+
 ### Flow 2: Adding an Expense
 
 ```
@@ -148,6 +160,21 @@ Validate → Show success message
 Return to Dashboard (transaction appears in list)
 ```
 
+```mermaid
+flowchart TD
+    A[Dashboard] --> B[Click 'Add Expense' button]
+    B --> C[Transaction Form]
+    C --> D[Enter Amount]
+    D --> E[Select Category]
+    E --> F[Add Description]
+    F --> G[Choose Date]
+    G --> H[Set Visibility]
+    H --> I[Click 'Save']
+    I --> J{Validate}
+    J -->|Success| K[Show success message]
+    K --> L[Return to Dashboard]
+```
+
 ### Flow 3: Inviting Family Member
 
 ```
@@ -163,6 +190,23 @@ Choose invitation method:
 Send invitation
   ↓
 New user receives invite → Registers → Auto-joins group
+```
+
+```mermaid
+flowchart TD
+    A[Dashboard] --> B[Settings]
+    B --> C[Group Management]
+    C --> D[Click 'Invite Member']
+    D --> E{Choose invitation method}
+    E -->|Email| F[Enter email address]
+    E -->|Code| G[Share invite code]
+    E -->|QR| H[Generate QR code]
+    F --> I[Send invitation]
+    G --> I
+    H --> I
+    I --> J[New user receives invite]
+    J --> K[Registers]
+    K --> L[Auto-joins group]
 ```
 
 ### Flow 4: Viewing Reports
@@ -184,6 +228,23 @@ View charts and insights
 (Optional) Export to PDF/CSV
 ```
 
+```mermaid
+flowchart TD
+    A[Dashboard] --> B[Click 'Reports' tab]
+    B --> C{Select report type}
+    C -->|Category| D[Spending by Category]
+    C -->|Trends| E[Trends Over Time]
+    C -->|Comparison| F[Income vs Expenses]
+    D --> G[Select date range]
+    E --> G
+    F --> G
+    G --> H[Select scope: Personal/Group]
+    H --> I[View charts and insights]
+    I --> J{Export?}
+    J -->|Yes| K[Export to PDF/CSV]
+    J -->|No| L[Done]
+```
+
 ### Flow 5: Switching Between Personal and Group View
 
 ```
@@ -199,6 +260,19 @@ Dashboard updates to show:
   - Group total balance
   - All group transactions
   - Group spending breakdown
+```
+
+```mermaid
+flowchart TD
+    A[Dashboard - Personal view] --> B[Click group selector in header]
+    B --> C[Dropdown shows options]
+    C --> D{Select view}
+    D -->|Personal| E[Stay on Personal view]
+    D -->|Group Name| F[Switch to Group view]
+    F --> G[Dashboard updates]
+    G --> H[Show Group total balance]
+    G --> I[Show All group transactions]
+    G --> J[Show Group spending breakdown]
 ```
 
 ## Screen Specifications
