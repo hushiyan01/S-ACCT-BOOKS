@@ -1,6 +1,6 @@
 # S-ACCT-BOOKS
 
-A shared family accounting book system for tracking personal and group expenses and incomes.
+A shared family accounting book system for tracking personal and shared expenses and incomes across multiple ledgers.
 
 ## 📋 Project Status
 
@@ -61,7 +61,7 @@ This repository contains comprehensive planning documentation to help you unders
 
 ## 🎯 Project Vision
 
-S-ACCT-BOOKS enables families and small groups to collaboratively track finances while maintaining individual privacy. Users can log daily expenses and income via web or mobile, view personal financial history, and access aggregated group insights.
+S-ACCT-BOOKS enables families and small groups to collaboratively track finances while maintaining individual privacy. Users can log daily expenses and income via web or mobile, view personal financial history, and access aggregated ledger insights. Users can belong to multiple ledgers (e.g., personal, family, roommates).
 
 **Target Users:** Families, roommates, couples, or any small group sharing expenses
 
@@ -92,8 +92,9 @@ S-ACCT-BOOKS enables families and small groups to collaboratively track finances
                     ↓
          ┌──────────────────────┐
          │    PostgreSQL DB     │
-         │  - Groups            │
          │  - Users             │
+         │  - Ledgers           │
+         │  - Ledger_Members    │
          │  - Transactions      │
          │  - Budgets           │
          └──────────────────────┘
@@ -182,7 +183,7 @@ Once designs are ready, links will be added here:
 
 ### Phase 1 (MVP)
 - User authentication (JWT-based)
-- Group creation and management
+- Ledger creation and management
 - Transaction logging (expenses & income)
 - Personal transaction history with filtering
 - Dashboard with balance and recent transactions
@@ -191,7 +192,7 @@ Once designs are ready, links will be added here:
 ### Phase 2
 - Android mobile app
 - Offline-first architecture
-- Group invitation system
+- Ledger invitation system with roles
 - Multi-user data aggregation
 
 ### Phase 3+
@@ -234,8 +235,8 @@ TBD - Add project owner contact information
 
 ### Open Questions
 
-❓ **Privacy Model:** Group admins see all transactions or only "shared" ones?
-❓ **Group Invitations:** Email, invite codes, or QR codes? (or all three?)
+❓ **Privacy Model:** Ledger admins see all transactions or only "shared" ones?
+❓ **Ledger Invitations:** Email, invite codes, or QR codes? (or all three?)
 ❓ **Categories:** Fixed list or user-customizable?
 ❓ **Backend Technology:** Which framework to use?
 ❓ **Monetization:** Free tier only or freemium model?
