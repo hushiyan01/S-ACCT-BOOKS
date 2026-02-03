@@ -82,24 +82,24 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 - [ ] Write UI and unit tests
 - [ ] Deploy to internal testing track
 
-## Phase 3: Group Features (Est. 3-4 weeks)
+## Phase 3: Ledger Features (Est. 3-4 weeks)
 
 ### Backend
-- [ ] Implement group creation and management endpoints
-- [ ] Implement group invitation system (decide: email/code/QR)
-- [ ] Add role-based access control
-- [ ] Implement group member management
-- [ ] Add aggregated group data endpoints
+- [ ] Implement ledger creation and management endpoints
+- [ ] Implement ledger invitation system (decide: email/code/QR)
+- [ ] Add role-based access control (owner/admin/editor/viewer)
+- [ ] Implement ledger member management with roles
+- [ ] Add aggregated ledger data endpoints
 - [ ] Update transaction visibility logic
 
 ### Frontend (Web + Android)
-- [ ] Build group creation flow
-- [ ] Build group invitation system
-- [ ] Build group member management UI
-- [ ] Build shared group dashboard
-- [ ] Add group selector in navigation
-- [ ] Implement group-specific transaction filtering
-- [ ] Add permission checks in UI
+- [ ] Build ledger creation flow
+- [ ] Build ledger invitation system
+- [ ] Build ledger member management UI with role display
+- [ ] Build shared ledger dashboard
+- [ ] Add ledger selector in navigation (support multiple ledgers)
+- [ ] Implement ledger-specific transaction filtering
+- [ ] Add permission checks in UI based on role
 - [ ] Update both web and Android apps
 
 ## Phase 4: Analytics & Reports (Est. 2-3 weeks)

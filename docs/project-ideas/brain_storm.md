@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A shared family accounting book system for tracking personal and group expenses, incomes, and asset changes.
+A shared family accounting book system for tracking personal and group expenses and incomes.
 
 **Components:**
 - Frontend: Android app (initial release)
@@ -19,25 +19,32 @@ A shared family accounting book system for tracking personal and group expenses,
 
 **Proposed Tables:**
 
-1. **`groups`**
+1. **`users`**
    - `id` (PK)
-   - `name`
-   - `created_at`
-   - `updated_at`
-
-2. **`users`**
-   - `id` (PK)
-   - `group_id` (FK to groups)
    - `username`
    - `email`
    - `password_hash`
-   - `role` (admin, member)
    - `created_at`
 
-3. **`transactions`**
+2. **`ledgers`** (shared accounting books)
+   - `id` (PK)
+   - `name`
+   - `currency` (default: USD)
+   - `created_by` (FK to users)
+   - `created_at`
+   - `updated_at`
+
+3. **`ledger_members`** (many-to-many: users ↔ ledgers)
+   - `id` (PK)
+   - `ledger_id` (FK to ledgers)
+   - `user_id` (FK to users)
+   - `role` (owner, admin, editor, viewer)
+   - `joined_at`
+
+4. **`transactions`**
    - `id` (PK)
    - `user_id` (FK to users)
-   - `group_id` (FK to groups)
+   - `ledger_id` (FK to ledgers)
    - `type` (income, expense)
    - `category` (food, transport, salary, etc.)
    - `amount`
@@ -47,51 +54,57 @@ A shared family accounting book system for tracking personal and group expenses,
    - `created_at`
    - `updated_at`
 
-4. **`budgets`** (optional for expense limits)
+5. **`budgets`** (optional for expense limits)
    - `id` (PK)
-   - `user_id` (FK to users, nullable for group budgets)
-   - `group_id` (FK to groups)
+   - `user_id` (FK to users, nullable for ledger-wide budgets)
+   - `ledger_id` (FK to ledgers)
    - `category`
    - `limit_amount`
    - `period` (daily, weekly, monthly)
    - `created_at`
 
-5. **`assets`** (for tracking savings, investments, etc.)
-   - `id` (PK)
-   - `user_id` (FK to users)
-   - `asset_type` (savings, investment, property)
-   - `name`
-   - `value`
-   - `currency`
-   - `updated_at`
+**Role Permissions:**
+- **owner**: Full control, can delete ledger, manage all members
+- **admin**: Can invite/remove members (except owner), edit ledger settings
+- **editor**: Can add/edit/delete transactions
+- **viewer**: Read-only access to ledger data
 
 ### API Endpoints (Ideas)
 
 **Authentication:**
-- `POST /api/auth/register` - User registration (requires group_id or creates new group)
+- `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
 - `POST /api/auth/logout` - User logout
+
+**Ledgers:**
+- `POST /api/ledgers` - Create new ledger
+- `GET /api/ledgers` - Get user's ledgers (all ledgers user has access to)
+- `GET /api/ledgers/{id}` - Get ledger details
+- `PUT /api/ledgers/{id}` - Update ledger (admin/owner only)
+- `DELETE /api/ledgers/{id}` - Delete ledger (owner only)
+
+**Ledger Members:**
+- `GET /api/ledgers/{id}/members` - Get ledger members
+- `POST /api/ledgers/{id}/members` - Add member to ledger (admin/owner only)
+- `PUT /api/ledgers/{id}/members/{user_id}` - Update member role (admin/owner only)
+- `DELETE /api/ledgers/{id}/members/{user_id}` - Remove member (admin/owner only)
+- `POST /api/ledgers/{id}/invite` - Generate invite link/code
 
 **Transactions:**
 - `POST /api/transactions` - Create new transaction
 - `GET /api/transactions?user_id={id}` - Get user's transactions
-- `GET /api/transactions?group_id={id}` - Get group's transactions
+- `GET /api/transactions?ledger_id={id}` - Get ledger's transactions
 - `PUT /api/transactions/{id}` - Update transaction
 - `DELETE /api/transactions/{id}` - Delete transaction
 
 **Reports/Analytics:**
 - `GET /api/reports/user/{user_id}?period={month/year}` - User financial summary
-- `GET /api/reports/group/{group_id}?period={month/year}` - Group financial summary
-- `GET /api/reports/category-breakdown?user_id={id}` - Expense by category
+- `GET /api/reports/ledger/{ledger_id}?period={month/year}` - Ledger financial summary
+- `GET /api/reports/category-breakdown?ledger_id={id}` - Expense by category
 
 **Budgets:**
 - `POST /api/budgets` - Create budget/limit
 - `GET /api/budgets/check/{user_id}` - Check if approaching limit (for notifications)
-
-**Groups:**
-- `POST /api/groups` - Create new group
-- `GET /api/groups/{id}/members` - Get group members
-- `POST /api/groups/{id}/invite` - Invite member to group
 
 ### Technology Stack (Backend Ideas)
 
@@ -117,12 +130,12 @@ A shared family accounting book system for tracking personal and group expenses,
 ### Additional Backend Considerations
 
 - **Authentication:** JWT-based with refresh tokens
-- **Authorization:** Role-based (group admin vs member)
+- **Authorization:** Role-based (owner/admin/editor/viewer per ledger)
 - **Validation:** Input validation on all endpoints
 - **Error Handling:** Standardized error responses
 - **Logging:** Request/response logging for debugging
 - **Rate Limiting:** Prevent abuse
-- **Data Privacy:** Users can only see their group's data
+- **Data Privacy:** Users can only see ledgers they have access to
 
 ---
 
@@ -143,7 +156,7 @@ A shared family accounting book system for tracking personal and group expenses,
 
 1. **Authentication Screens**
    - Login
-   - Register (with group selection/creation)
+   - Register (with ledger creation/joining)
 
 2. **Main Dashboard**
    - Personal balance summary
@@ -158,14 +171,15 @@ A shared family accounting book system for tracking personal and group expenses,
 
 4. **Reports/Analytics**
    - Personal expense breakdown (pie/bar charts)
-   - Group expense breakdown
+   - Ledger expense breakdown
    - Monthly/yearly comparisons
    - Category-wise spending trends
 
-5. **Group Management**
-   - View group members
+5. **Ledger Management**
+   - View ledger members and roles
    - Invite new members
-   - Group expense overview
+   - Ledger expense overview
+   - Switch between ledgers
 
 6. **Settings/Profile**
    - User profile
@@ -179,7 +193,7 @@ A shared family accounting book system for tracking personal and group expenses,
 - **Push Notifications:**
   - Budget limit warnings (80%, 90%, 100%)
   - Daily expense reminders
-  - Group activity updates (optional)
+  - Ledger activity updates (optional)
 - **Categories:** Predefined + custom categories
 - **Multi-currency Support:** For international families
 - **Export Data:** CSV/PDF export for personal records
@@ -208,10 +222,11 @@ Remote Data Source    Local Data Source
 - Personal transaction history
 - Simple dashboard with total income/expense
 
-### Phase 2: Group Features
-- Group creation and joining
-- Group transaction aggregation
-- Group dashboard/reports
+### Phase 2: Ledger Features
+- Ledger creation and joining
+- Multi-user ledger access with roles
+- Ledger transaction aggregation
+- Ledger dashboard/reports
 
 ### Phase 3: Analytics & Reporting
 - Category-based breakdown
@@ -234,9 +249,9 @@ Remote Data Source    Local Data Source
 
 ## Questions to Consider
 
-1. **Group Management:** How should group invitations work? Via email, invite code, or QR code?
-2. **Data Ownership:** Can users leave a group? What happens to their transaction history?
-3. **Privacy:** Should group members see each other's individual transactions or just aggregated data?
+1. **Ledger Invitations:** How should ledger invitations work? Via email, invite code, or QR code?
+2. **Data Ownership:** Can users leave a ledger? What happens to their transaction history?
+3. **Privacy:** Should ledger members see each other's individual transactions or just aggregated data?
 4. **Currency:** Support multiple currencies? Auto-conversion?
 5. **Recurring Transactions:** Support for subscriptions, salary, rent?
 6. **Categories:** Predefined list vs fully customizable?

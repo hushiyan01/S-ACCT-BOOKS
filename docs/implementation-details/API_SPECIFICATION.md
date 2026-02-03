@@ -130,11 +130,11 @@ Authenticate existing user.
       "id": "user_123",
       "name": "John Doe",
       "email": "john@example.com",
-      "groups": [
+      "ledgers": [
         {
-          "id": "group_456",
+          "id": "ledger_456",
           "name": "Family Budget",
-          "role": "admin"
+          "role": "owner"
         }
       ]
     },
@@ -203,11 +203,11 @@ Invalidate refresh token (optional - can also handle client-side only).
 
 ---
 
-## 2. Groups
+## 2. Ledgers
 
-### POST `/groups`
+### POST `/ledgers`
 
-Create a new group.
+Create a new ledger.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -224,7 +224,7 @@ Create a new group.
 {
   "success": true,
   "data": {
-    "id": "group_456",
+    "id": "ledger_456",
     "name": "Family Budget",
     "currency": "USD",
     "createdBy": "user_123",
@@ -233,7 +233,7 @@ Create a new group.
         "userId": "user_123",
         "name": "John Doe",
         "email": "john@example.com",
-        "role": "admin",
+        "role": "owner",
         "joinedAt": "2026-01-20T10:00:00Z"
       }
     ],
@@ -244,9 +244,40 @@ Create a new group.
 
 ---
 
-### GET `/groups/:groupId`
+### GET `/ledgers`
 
-Get group details.
+Get all ledgers the user has access to.
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "ledger_456",
+      "name": "Family Budget",
+      "currency": "USD",
+      "role": "owner",
+      "memberCount": 4
+    },
+    {
+      "id": "ledger_789",
+      "name": "Roommates",
+      "currency": "USD",
+      "role": "editor",
+      "memberCount": 3
+    }
+  ]
+}
+```
+
+---
+
+### GET `/ledgers/:ledgerId`
+
+Get ledger details.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -255,7 +286,7 @@ Get group details.
 {
   "success": true,
   "data": {
-    "id": "group_456",
+    "id": "ledger_456",
     "name": "Family Budget",
     "currency": "USD",
     "createdBy": "user_123",
@@ -266,7 +297,7 @@ Get group details.
         "userId": "user_123",
         "name": "John Doe",
         "email": "john@example.com",
-        "role": "admin",
+        "role": "owner",
         "joinedAt": "2026-01-20T10:00:00Z"
       }
     ],
@@ -276,14 +307,14 @@ Get group details.
 ```
 
 **Errors:**
-- `403` - User not member of this group
-- `404` - Group not found
+- `403` - User not member of this ledger
+- `404` - Ledger not found
 
 ---
 
-### PATCH `/groups/:groupId`
+### PATCH `/ledgers/:ledgerId`
 
-Update group details (admin only).
+Update ledger details (admin/owner only).
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -298,26 +329,26 @@ Update group details (admin only).
 **Response:** `200 OK`
 
 **Errors:**
-- `403` - User not admin of this group
+- `403` - User not admin/owner of this ledger
 
 ---
 
-### DELETE `/groups/:groupId`
+### DELETE `/ledgers/:ledgerId`
 
-Delete group (admin only). All transactions are deleted.
+Delete ledger (owner only). All transactions are deleted.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Response:** `200 OK`
 
 **Errors:**
-- `403` - User not admin of this group
+- `403` - User not owner of this ledger
 
 ---
 
-### GET `/groups/:groupId/members`
+### GET `/ledgers/:ledgerId/members`
 
-List all group members.
+List all ledger members.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -330,7 +361,7 @@ List all group members.
       "userId": "user_123",
       "name": "John Doe",
       "email": "john@example.com",
-      "role": "admin",
+      "role": "owner",
       "transactionCount": 45,
       "totalSpent": 1250.50,
       "joinedAt": "2026-01-20T10:00:00Z"
@@ -339,7 +370,7 @@ List all group members.
       "userId": "user_456",
       "name": "Jane Doe",
       "email": "jane@example.com",
-      "role": "member",
+      "role": "editor",
       "transactionCount": 32,
       "totalSpent": 890.25,
       "joinedAt": "2026-01-21T14:30:00Z"
@@ -348,11 +379,13 @@ List all group members.
 }
 ```
 
+**Role values:** `owner`, `admin`, `editor`, `viewer`
+
 ---
 
-### POST `/groups/:groupId/invite`
+### POST `/ledgers/:ledgerId/invite`
 
-Invite a member to group (admin only).
+Invite a member to ledger (admin/owner only).
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -360,7 +393,7 @@ Invite a member to group (admin only).
 ```json
 {
   "email": "newmember@example.com",
-  "role": "member"
+  "role": "editor"
 }
 ```
 
@@ -380,9 +413,9 @@ Invite a member to group (admin only).
 
 ---
 
-### POST `/groups/join`
+### POST `/ledgers/join`
 
-Join a group using invite code.
+Join a ledger using invite code.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -398,10 +431,10 @@ Join a group using invite code.
 {
   "success": true,
   "data": {
-    "group": {
-      "id": "group_456",
+    "ledger": {
+      "id": "ledger_456",
       "name": "Family Budget",
-      "role": "member"
+      "role": "editor"
     }
   }
 }
@@ -409,20 +442,41 @@ Join a group using invite code.
 
 **Errors:**
 - `400` - Invalid or expired invite code
-- `409` - User already member of group
+- `409` - User already member of ledger
 
 ---
 
-### DELETE `/groups/:groupId/members/:userId`
+### PATCH `/ledgers/:ledgerId/members/:userId`
 
-Remove member from group (admin only, cannot remove self).
+Update member role (admin/owner only).
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**Request Body:**
+```json
+{
+  "role": "admin"
+}
+```
+
+**Response:** `200 OK`
+
+**Errors:**
+- `403` - Not authorized or trying to change owner role
+- `404` - Member not found
+
+---
+
+### DELETE `/ledgers/:ledgerId/members/:userId`
+
+Remove member from ledger (admin/owner only, cannot remove owner).
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Response:** `200 OK`
 
 **Errors:**
-- `403` - Not authorized or trying to remove self
+- `403` - Not authorized or trying to remove owner
 - `404` - Member not found
 
 ---
@@ -438,7 +492,7 @@ Create a new transaction.
 **Request Body:**
 ```json
 {
-  "groupId": "group_456",
+  "ledgerId": "ledger_456",
   "type": "expense",
   "amount": 45.99,
   "category": "food",
@@ -461,7 +515,7 @@ Create a new transaction.
   "success": true,
   "data": {
     "id": "txn_789",
-    "groupId": "group_456",
+    "ledgerId": "ledger_456",
     "userId": "user_123",
     "type": "expense",
     "amount": 45.99,
@@ -477,7 +531,7 @@ Create a new transaction.
 
 **Errors:**
 - `400` - Validation error (invalid amount, category, etc.)
-- `403` - User not member of group
+- `403` - User not member of ledger
 
 ---
 
@@ -488,7 +542,7 @@ List transactions with filtering and pagination.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required): Filter by group
+- `ledgerId` (required): Filter by ledger
 - `type`: "expense" | "income" | "all" (default: "all")
 - `category`: Filter by category (comma-separated for multiple)
 - `visibility`: "personal" | "shared" | "all" (default: "all")
@@ -503,7 +557,7 @@ List transactions with filtering and pagination.
 
 **Example Request:**
 ```
-GET /transactions?groupId=group_456&type=expense&startDate=2026-01-01&page=1&pageSize=20
+GET /transactions?ledgerId=ledger_456&type=expense&startDate=2026-01-01&page=1&pageSize=20
 ```
 
 **Response:** `200 OK`
@@ -513,7 +567,7 @@ GET /transactions?groupId=group_456&type=expense&startDate=2026-01-01&page=1&pag
   "data": [
     {
       "id": "txn_789",
-      "groupId": "group_456",
+      "ledgerId": "ledger_456",
       "userId": "user_123",
       "userName": "John Doe",
       "type": "expense",
@@ -548,7 +602,7 @@ Get single transaction details.
   "success": true,
   "data": {
     "id": "txn_789",
-    "groupId": "group_456",
+    "ledgerId": "ledger_456",
     "userId": "user_123",
     "userName": "John Doe",
     "type": "expense",
@@ -664,8 +718,8 @@ Get financial summary for a period.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required): Group ID
-- `scope`: "personal" | "group" (default: "personal")
+- `ledgerId` (required): Ledger ID
+- `scope`: "personal" | "ledger" (default: "personal")
 - `startDate`: ISO 8601 date
 - `endDate`: ISO 8601 date
 - `userId`: Specific user (if scope=personal)
@@ -722,8 +776,8 @@ Get spending/income trends over time.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required)
-- `scope`: "personal" | "group"
+- `ledgerId` (required)
+- `scope`: "personal" | "ledger"
 - `startDate`: ISO 8601 date
 - `endDate`: ISO 8601 date
 - `interval`: "day" | "week" | "month" (default: "day")
@@ -762,8 +816,8 @@ Get breakdown of spending by category.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required)
-- `scope`: "personal" | "group"
+- `ledgerId` (required)
+- `scope`: "personal" | "ledger"
 - `startDate`: ISO 8601 date
 - `endDate`: ISO 8601 date
 - `type`: "expense" | "income" | "all"
@@ -814,9 +868,9 @@ Get current user profile.
     "id": "user_123",
     "name": "John Doe",
     "email": "john@example.com",
-    "groups": [
+    "ledgers": [
       {
-        "id": "group_456",
+        "id": "ledger_456",
         "name": "Family Budget",
         "role": "admin",
         "memberCount": 4
@@ -910,14 +964,14 @@ Delete user account (soft delete - mark as deleted).
 ### Resources
 - `NOT_FOUND` - Resource not found
 - `ALREADY_EXISTS` - Resource already exists (e.g., duplicate email)
-- `NOT_MEMBER` - User not member of group
+- `NOT_MEMBER` - User not member of ledger
 - `NOT_OWNER` - User doesn't own this resource
 
 ### Business Logic
-- `GROUP_LIMIT_REACHED` - User has reached max groups
+- `LEDGER_LIMIT_REACHED` - User has reached max ledgers
 - `INVITATION_EXPIRED` - Invite code expired
 - `CANNOT_REMOVE_SELF` - Admin cannot remove themselves
-- `LAST_ADMIN` - Cannot remove last admin from group
+- `LAST_OWNER` - Cannot remove owner from ledger
 
 ### Server
 - `INTERNAL_ERROR` - Unexpected server error
@@ -956,8 +1010,8 @@ Allow clients to subscribe to events:
 - `transaction.created`
 - `transaction.updated`
 - `transaction.deleted`
-- `group.member_added`
-- `group.member_removed`
+- `ledger.member_added`
+- `ledger.member_removed`
 - `budget.limit_reached`
 
 ---
@@ -975,7 +1029,7 @@ A Postman collection will be provided with example requests for all endpoints.
 ### Sample Test Data
 - Email: `test@example.com`
 - Password: `TestPassword123`
-- Group name: `Test Family`
+- Ledger name: `Test Family`
 
 ---
 
