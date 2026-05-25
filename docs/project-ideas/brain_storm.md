@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A shared family accounting book system for tracking personal and group expenses, incomes, and asset changes.
+A shared family accounting book system for tracking personal and shared expenses and incomes across one or more ledgers.
 
 **Components:**
 - Frontend: Responsive web app (initial MVP release)
@@ -20,15 +20,7 @@ A shared family accounting book system for tracking personal and group expenses,
 
 **Proposed Tables:**
 
-1. **`groups`**
-   - `id` (PK)
-   - `name`
-   - `currency` (group default, ISO 4217, e.g. "USD")
-   - `created_by` (FK to users — group creator)
-   - `created_at`
-   - `updated_at`
-
-2. **`users`**
+1. **`users`**
    - `id` (PK)
    - `name` (display name; not unique; shown in UI)
    - `email` (unique, login identifier)
@@ -36,9 +28,26 @@ A shared family accounting book system for tracking personal and group expenses,
    - `deleted_at` (nullable `TIMESTAMP` — soft-delete marker; login blocked when set; all issued refresh tokens are revoked at the same time)
    - `created_at`
    - `updated_at`
-   - Note: users have NO direct `group_id`. A user can belong to zero or more groups; membership is modeled via `group_memberships`. Login is by `email` only — there is no `username` field. Soft-deleted users retain their `name` so historic transactions stay attributable.
+   - Note: users have NO direct `ledger_id`. A user can belong to zero or more ledgers; membership is modeled via `ledger_members`. Login is by `email` only — there is no `username` field. Soft-deleted users retain their `name` so historic transactions stay attributable.
 
-3. **`refresh_tokens`** (auth — issued refresh tokens, revocable)
+2. **`ledgers`** (shared accounting books)
+   - `id` (PK)
+   - `name`
+   - `currency` (ledger default, `CHAR(3)` ISO 4217, e.g. `"USD"`)
+   - `created_by` (FK to users — ledger creator; becomes the initial `owner` member)
+   - `created_at`
+   - `updated_at`
+
+3. **`ledger_members`** (join table — users ↔ ledgers, with per-ledger role)
+   - `id` (PK)
+   - `ledger_id` (FK to ledgers)
+   - `user_id` (FK to users)
+   - `role` (`owner` | `admin` | `editor` | `viewer`)
+   - `joined_at`
+   - **Unique constraint:** `(user_id, ledger_id)` — a user can only be in a given ledger once
+   - **Indexes:** `(user_id)`, `(ledger_id)` for membership lookups in both directions
+
+4. **`refresh_tokens`** (auth — issued refresh tokens, revocable)
    - `id` (PK)
    - `user_id` (FK to users)
    - `token_hash` (SHA-256 of the issued token; never store raw tokens)
@@ -49,48 +58,35 @@ A shared family accounting book system for tracking personal and group expenses,
    - **Indexes:** `(user_id)`, `(token_hash)` for refresh validation
    - **Refresh rule:** token is valid iff `revoked_at IS NULL AND expires_at > now()`. Rotation: on every successful refresh, mark the old token's `revoked_at` and issue a fresh one.
 
-4. **`group_memberships`** (join table — users ↔ groups, with per-group role)
-   - `id` (PK)
-   - `user_id` (FK to users)
-   - `group_id` (FK to groups)
-   - `role` (`admin` | `member`)
-   - `joined_at`
-   - **Unique constraint:** `(user_id, group_id)` — a user can only be in a given group once
-   - **Indexes:** `(user_id)`, `(group_id)` for membership lookups in both directions
-
 5. **`transactions`**
    - `id` (PK)
    - `user_id` (FK to users — the creator)
-   - `group_id` (FK to groups — the group this transaction is recorded under)
+   - `ledger_id` (FK to ledgers — the ledger this transaction is recorded under)
    - `type` (`income` | `expense`)
    - `category` (ENUM `VARCHAR(20)` — one of the 10 predefined slugs; see "Predefined Categories" below)
    - `amount` (`DECIMAL(15,2)`, non-null, must be > 0)
-   - `currency` (`CHAR(3)`, ISO 4217; defaults to the group's currency; explicit multi-currency conversion is Phase 5)
+   - `currency` (`CHAR(3)`, ISO 4217; defaults to the ledger's currency; explicit multi-currency conversion is Phase 5)
    - `description` (`VARCHAR(255)`, nullable)
-   - `visibility` (`personal` | `shared`) — controls whether other group members see this transaction
+   - `visibility` (`personal` | `shared`) — controls whether other ledger members see this transaction
    - `transaction_date` (`DATE`, non-null — no time-of-day; one row per day's spend)
    - `created_at` (`TIMESTAMP`)
    - `updated_at` (`TIMESTAMP`)
-   - **Authorization rule:** before insert/select, verify `(user_id, group_id)` exists in `group_memberships`.
+   - **Authorization rule:** before insert/select, verify `(user_id, ledger_id)` exists in `ledger_members` and that the user's role permits the operation (see Role Permissions below).
 
 6. **`budgets`** (optional for expense limits)
    - `id` (PK)
-   - `user_id` (FK to users, nullable for group-wide budgets)
-   - `group_id` (FK to groups)
+   - `user_id` (FK to users, nullable for ledger-wide budgets)
+   - `ledger_id` (FK to ledgers)
    - `category`
    - `limit_amount` (`DECIMAL(15,2)`, non-null, must be > 0)
    - `period` (daily, weekly, monthly)
    - `created_at`
 
-7. **`assets`** (for tracking savings, investments, etc.)
-   - `id` (PK)
-   - `user_id` (FK to users)
-   - `group_id` (FK to groups, nullable — null means personal asset not tied to any group)
-   - `asset_type` (savings, investment, property)
-   - `name`
-   - `value` (`DECIMAL(15,2)`, non-null)
-   - `currency` (CHAR(3), ISO 4217)
-   - `updated_at`
+**Role Permissions** (`ledger_members.role`):
+- **`owner`** — Full control. Can delete the ledger, change anyone's role, manage all members. The ledger creator is inserted as `owner` automatically. **Last-owner guard:** role-change and remove-member endpoints refuse if the operation would leave the ledger with zero `owner`s.
+- **`admin`** — Can invite members and remove non-owners; can change `editor`/`viewer` roles; can edit ledger settings (name, currency).
+- **`editor`** — Can add/edit/delete their own transactions; reads other members' transactions subject to visibility rules.
+- **`viewer`** — Read-only access to ledger data (subject to visibility rules); cannot create transactions.
 
 ### Predefined Categories (MVP)
 
@@ -114,33 +110,41 @@ In Spring Boot this is a Java `enum` persisted with `@Enumerated(EnumType.STRING
 ### API Endpoints (Ideas)
 
 **Authentication:**
-- `POST /api/auth/register` - User registration (user is created with no group; a separate create-or-join step inserts the first `group_memberships` row)
+- `POST /api/auth/register` - User registration (user row is created with no ledger; a separate create-or-join step inserts the first `ledger_members` row, with `role=owner` on create or `role=editor`/etc. on join)
 - `POST /api/auth/login` - User login
 - `POST /api/auth/logout` - User logout
+
+**Ledgers:**
+- `POST /api/ledgers` - Create new ledger
+- `GET /api/ledgers` - Get user's ledgers (all ledgers user has access to)
+- `GET /api/ledgers/{id}` - Get ledger details
+- `PUT /api/ledgers/{id}` - Update ledger (admin/owner only)
+- `DELETE /api/ledgers/{id}` - Delete ledger (owner only)
+
+**Ledger Members:**
+- `GET /api/ledgers/{id}/members` - Get ledger members
+- `POST /api/ledgers/{id}/members` - Add member to ledger (admin/owner only)
+- `PUT /api/ledgers/{id}/members/{user_id}` - Update member role (admin/owner only)
+- `DELETE /api/ledgers/{id}/members/{user_id}` - Remove member (admin/owner only)
+- `POST /api/ledgers/{id}/invite` - Generate invite link/code
 
 **Transactions:**
 - `POST /api/transactions` - Create new transaction
 - `GET /api/transactions?user_id={id}` - Get user's transactions
-- `GET /api/transactions?group_id={id}` - Get group's transactions
+- `GET /api/transactions?ledger_id={id}` - Get ledger's transactions
 - `PUT /api/transactions/{id}` - Update transaction
 - `DELETE /api/transactions/{id}` - Delete transaction
 
 **Reports/Analytics:**
 - `GET /api/reports/user/{user_id}?period={month/year}` - User financial summary
-- `GET /api/reports/group/{group_id}?period={month/year}` - Group financial summary
-- `GET /api/reports/category-breakdown?user_id={id}` - Expense by category
+- `GET /api/reports/ledger/{ledger_id}?period={month/year}` - Ledger financial summary
+- `GET /api/reports/category-breakdown?ledger_id={id}` - Expense by category
 
 **Budgets:**
 - `POST /api/budgets` - Create budget/limit
 - `GET /api/budgets/check/{user_id}` - Check if approaching limit (for notifications)
 
-**Groups:**
-- `POST /api/groups` - Create new group (creator inserted into `group_memberships` as `admin`)
-- `GET /api/groups/{id}/members` - Get group members (reads from `group_memberships` joined to `users`)
-- `POST /api/groups/{id}/invite` - Invite member to group
-- `POST /api/groups/join` - Accept an invite code (inserts a `group_memberships` row)
-- `PATCH /api/groups/{id}/members/{userId}` - Change role (admin only)
-- `DELETE /api/groups/{id}/members/{userId}` - Remove member (admin only; cannot remove last admin)
+> Ledger creation inserts the creator into `ledger_members` as `owner`. `POST /api/ledgers/{id}/join` accepts an invite code and inserts a `ledger_members` row (role determined by the invite). Role change and member removal are subject to the **last-owner guard** — operations refusing to leave the ledger with zero owners.
 
 ### Technology Stack (Backend — locked in)
 
@@ -155,17 +159,17 @@ In Spring Boot this is a Java `enum` persisted with `@Enumerated(EnumType.STRING
 - **API docs:** springdoc-openapi (auto-generates OpenAPI 3 from controllers)
 - **Validation:** Jakarta Bean Validation (`@Valid`, `@NotNull`, `@Size`, etc.)
 - **Testing:** JUnit 5 + Testcontainers (MySQL container) for integration tests
-- **Email:** no email service in MVP — password reset and group-invite emails are deferred to Phase 3 when an email provider is selected
+- **Email:** no email service in MVP — password reset and ledger-invite emails are deferred to Phase 3 when an email provider is selected
 
 ### Additional Backend Considerations
 
 - **Authentication:** JWT-based with refresh tokens
-- **Authorization:** Per-group role via `group_memberships.role` (admin vs member). A user's privileges are scoped to each group independently.
+- **Authorization:** Per-ledger role via `ledger_members.role` (`owner` / `admin` / `editor` / `viewer`). A user's privileges are scoped to each ledger independently.
 - **Validation:** Input validation on all endpoints
 - **Error Handling:** Standardized error responses
 - **Logging:** Request/response logging for debugging
 - **Rate Limiting:** Prevent abuse
-- **Data Privacy:** Users can only see data for groups they are members of; `visibility=personal` transactions are hidden from other members and excluded from group aggregates.
+- **Data Privacy:** Users can only see ledgers they are members of; `visibility=personal` transactions are hidden from other members and excluded from ledger aggregates.
 
 ---
 
@@ -199,7 +203,7 @@ The MVP ships as a responsive web app. An Android app (described below) follows 
 
 1. **Authentication Screens**
    - Login
-   - Register (with group selection/creation)
+   - Register (with ledger creation/joining)
 
 2. **Main Dashboard**
    - Personal balance summary
@@ -214,14 +218,15 @@ The MVP ships as a responsive web app. An Android app (described below) follows 
 
 4. **Reports/Analytics**
    - Personal expense breakdown (pie/bar charts)
-   - Group expense breakdown
+   - Ledger expense breakdown
    - Monthly/yearly comparisons
    - Category-wise spending trends
 
-5. **Group Management**
-   - View group members
+5. **Ledger Management**
+   - View ledger members and roles
    - Invite new members
-   - Group expense overview
+   - Ledger expense overview
+   - Switch between ledgers
 
 6. **Settings/Profile**
    - User profile
@@ -235,7 +240,7 @@ The MVP ships as a responsive web app. An Android app (described below) follows 
 - **Push Notifications:**
   - Budget limit warnings (80%, 90%, 100%)
   - Daily expense reminders
-  - Group activity updates (optional)
+  - Ledger activity updates (optional)
 - **Categories:** Predefined + custom categories
 - **Multi-currency Support:** For international families
 - **Export Data:** CSV/PDF export for personal records
@@ -271,10 +276,10 @@ Remote Data Source    Local Data Source
 ## Development Phases (Proposal)
 
 ### Phase 1: MVP — Backend + Web (Minimum Viable Product)
-- Backend: auth (JWT + refresh), schema with `group_memberships`, transaction CRUD endpoints
+- Backend: auth (JWT + refresh), schema with `ledger_members`, transaction CRUD endpoints
 - Web: React + Vite + Material UI app
 - User registration / login / logout
-- Single-user group creation on first login (multi-user invites are Phase 3)
+- Single-user ledger creation on first login (multi-user invites are Phase 3)
 - Transaction CRUD (create, read, update, delete) with predefined categories
 - Personal transaction history with basic filtering (date / type / category)
 - Dashboard with total income / expense and recent transactions
@@ -284,11 +289,11 @@ Remote Data Source    Local Data Source
 - Compose UI, Retrofit networking, Room for offline cache
 - Internal testing track
 
-### Phase 3: Group Features (Web + Android)
-- Group invitations (email + invite code)
-- Multi-member groups with per-group roles (`admin` / `member`) backed by `group_memberships`
+### Phase 3: Ledger Features (Web + Android)
+- Ledger invitations (email + invite code)
+- Multi-member ledgers with per-ledger roles (`owner` / `admin` / `editor` / `viewer`) backed by `ledger_members`
 - Personal vs shared transaction visibility
-- Group dashboard / aggregated views (excluding personal transactions)
+- Ledger dashboard / aggregated views (excluding personal transactions)
 
 ### Phase 4: Analytics & Reporting
 - Category-based breakdown
@@ -315,14 +320,14 @@ Remote Data Source    Local Data Source
 
 ## Questions to Consider
 
-1. **Group Management:** How should group invitations work? Via email, invite code, or QR code?
+1. **Ledger Invitations:** How should ledger invitations work? Via email, invite code, or QR code?
    _Answered (Phase 3):_ invite code as the primary mechanism, optionally emailed once an email service is selected. QR is just a render of the same code.
-2. **Data Ownership:** Can users leave a group? What happens to their transaction history?
-   _Partially answered:_ account deletion is a soft-delete (`users.deleted_at`) and preserves transactions/memberships/assets with attribution to the now-deleted user (UI label "(deleted user)"). "Leave a single group while keeping account" is still open — likely a `DELETE /groups/:id/members/me` in Phase 3.
-3. **Privacy:** Should group members see each other's individual transactions or just aggregated data?
-   _Answered:_ per-transaction `visibility` (`personal` | `shared`). Personal transactions are hidden from other members and excluded from group aggregates.
+2. **Data Ownership:** Can users leave a ledger? What happens to their transaction history?
+   _Partially answered:_ account deletion is a soft-delete (`users.deleted_at`) and preserves transactions/memberships with attribution to the now-deleted user (UI label "(deleted user)"). "Leave a single ledger while keeping account" is still open — likely a `DELETE /ledgers/:id/members/me` in Phase 3.
+3. **Privacy:** Should ledger members see each other's individual transactions or just aggregated data?
+   _Answered:_ per-transaction `visibility` (`personal` | `shared`). Personal transactions are hidden from other members and excluded from ledger aggregates.
 4. **Currency:** Support multiple currencies? Auto-conversion?
-   Single currency per group in MVP; multi-currency + conversion in Phase 5.
+   Single currency per ledger in MVP; multi-currency + conversion in Phase 5.
 5. **Recurring Transactions:** Support for subscriptions, salary, rent?
    Phase 5.
 6. **Categories:** Predefined list vs fully customizable?

@@ -9,13 +9,13 @@
 
 This document defines the RESTful API for S-ACCT-BOOKS backend services. The API follows REST principles with JSON payloads and standard HTTP methods.
 
-### Data Model Note: Users ↔ Groups
+### Data Model Note: Users ↔ Ledgers
 
-A user can belong to multiple groups. Membership is modeled by a `group_memberships` join table (`user_id`, `group_id`, `role`, `joined_at`) with a unique constraint on `(user_id, group_id)`. **All group-scoped endpoints** (transactions, analytics, group reads, member admin actions) must verify the requester has a matching `group_memberships` row before responding. Role (`admin` vs `member`) is per-group, not a global property of the user.
+A user can belong to multiple ledgers. Membership is modeled by a `ledger_members` join table (`user_id`, `ledger_id`, `role`, `joined_at`) with a unique constraint on `(user_id, ledger_id)`. **All ledger-scoped endpoints** (transactions, analytics, ledger reads, member admin actions) must verify the requester has a matching `ledger_members` row before responding, and that their role permits the operation. Role values: `owner` | `admin` | `editor` | `viewer`, per-ledger and not a global property of the user.
 
 ### Data Model Note: Money
 
-All monetary fields (`amount`, `limit_amount`, `value`, analytics totals) are persisted as `DECIMAL(15,2)` in MySQL and exposed in JSON as numbers with up to two decimal places. Server-side they are `BigDecimal`. Range: up to 9,999,999,999,999.99 with cent precision. Currency is a separate `CHAR(3)` ISO 4217 column; mixed currencies within one group are not auto-converted in MVP (single currency per group enforced at write time).
+All monetary fields (`amount`, `limit_amount`, analytics totals) are persisted as `DECIMAL(15,2)` in MySQL and exposed in JSON as numbers with up to two decimal places. Server-side they are `BigDecimal`. Range: up to 9,999,999,999,999.99 with cent precision. Currency is a separate `CHAR(3)` ISO 4217 column; mixed currencies within one ledger are not auto-converted in MVP (single currency per ledger enforced at write time).
 
 ### Tech Stack
 
@@ -26,7 +26,7 @@ All monetary fields (`amount`, `limit_amount`, `value`, analytics totals) are pe
 
 ### Note: Password Reset & Email
 
-There is no email service in MVP. Endpoints for password reset (`/auth/password-reset-request`, `/auth/password-reset-confirm`) and email-based group invites are deferred to **Phase 3**, when an email provider is selected. Until then, password recovery is a manual operator action against the DB.
+There is no email service in MVP. Endpoints for password reset (`/auth/password-reset-request`, `/auth/password-reset-confirm`) and email-based ledger invites are deferred to **Phase 3**, when an email provider is selected. Until then, password recovery is a manual operator action against the DB.
 
 ## Authentication
 
@@ -149,11 +149,11 @@ Authenticate existing user.
       "id": "user_123",
       "name": "John Doe",
       "email": "john@example.com",
-      "groups": [
+      "ledgers": [
         {
-          "id": "group_456",
+          "id": "ledger_456",
           "name": "Family Budget",
-          "role": "admin"
+          "role": "owner"
         }
       ]
     },
@@ -225,11 +225,11 @@ Revoke the refresh token. Server-side, this sets `revoked_at = now()` on the mat
 
 ---
 
-## 2. Groups
+## 2. Ledgers
 
-### POST `/groups`
+### POST `/ledgers`
 
-Create a new group. Inserts a new row into `groups` and a `group_memberships` row for the creator with `role=admin`.
+Create a new ledger. Inserts a new row into `ledgers` and a `ledger_members` row for the creator with `role=owner`.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -246,7 +246,7 @@ Create a new group. Inserts a new row into `groups` and a `group_memberships` ro
 {
   "success": true,
   "data": {
-    "id": "group_456",
+    "id": "ledger_456",
     "name": "Family Budget",
     "currency": "USD",
     "createdBy": "user_123",
@@ -255,7 +255,7 @@ Create a new group. Inserts a new row into `groups` and a `group_memberships` ro
         "userId": "user_123",
         "name": "John Doe",
         "email": "john@example.com",
-        "role": "admin",
+        "role": "owner",
         "joinedAt": "2026-01-20T10:00:00Z"
       }
     ],
@@ -266,9 +266,40 @@ Create a new group. Inserts a new row into `groups` and a `group_memberships` ro
 
 ---
 
-### GET `/groups/:groupId`
+### GET `/ledgers`
 
-Get group details.
+Get all ledgers the user has access to.
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "ledger_456",
+      "name": "Family Budget",
+      "currency": "USD",
+      "role": "owner",
+      "memberCount": 4
+    },
+    {
+      "id": "ledger_789",
+      "name": "Roommates",
+      "currency": "USD",
+      "role": "editor",
+      "memberCount": 3
+    }
+  ]
+}
+```
+
+---
+
+### GET `/ledgers/:ledgerId`
+
+Get ledger details.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -277,7 +308,7 @@ Get group details.
 {
   "success": true,
   "data": {
-    "id": "group_456",
+    "id": "ledger_456",
     "name": "Family Budget",
     "currency": "USD",
     "createdBy": "user_123",
@@ -288,7 +319,7 @@ Get group details.
         "userId": "user_123",
         "name": "John Doe",
         "email": "john@example.com",
-        "role": "admin",
+        "role": "owner",
         "joinedAt": "2026-01-20T10:00:00Z"
       }
     ],
@@ -298,14 +329,14 @@ Get group details.
 ```
 
 **Errors:**
-- `403` - User not member of this group
-- `404` - Group not found
+- `403` - User not member of this ledger
+- `404` - Ledger not found
 
 ---
 
-### PATCH `/groups/:groupId`
+### PATCH `/ledgers/:ledgerId`
 
-Update group details (admin only).
+Update ledger details (admin/owner only).
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -320,26 +351,26 @@ Update group details (admin only).
 **Response:** `200 OK`
 
 **Errors:**
-- `403` - User not admin of this group
+- `403` - User not admin/owner of this ledger
 
 ---
 
-### DELETE `/groups/:groupId`
+### DELETE `/ledgers/:ledgerId`
 
-Delete group (admin only). All transactions are deleted.
+Delete ledger (owner only). All transactions are deleted.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Response:** `200 OK`
 
 **Errors:**
-- `403` - User not admin of this group
+- `403` - User not owner of this ledger
 
 ---
 
-### GET `/groups/:groupId/members`
+### GET `/ledgers/:ledgerId/members`
 
-List all group members. The list is read from `group_memberships` joined with `users`. `transactionCount` and `totalSpent` exclude other members' `visibility=personal` transactions — i.e., the viewer sees their own personal totals fully, but only `shared` totals for other members.
+List all ledger members. The list is read from `ledger_members` joined with `users`. `transactionCount` and `totalSpent` exclude other members' `visibility=personal` transactions — i.e., the viewer sees their own personal totals fully, but only `shared` totals for other members.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -352,7 +383,7 @@ List all group members. The list is read from `group_memberships` joined with `u
       "userId": "user_123",
       "name": "John Doe",
       "email": "john@example.com",
-      "role": "admin",
+      "role": "owner",
       "transactionCount": 45,
       "totalSpent": 1250.50,
       "joinedAt": "2026-01-20T10:00:00Z"
@@ -361,7 +392,7 @@ List all group members. The list is read from `group_memberships` joined with `u
       "userId": "user_456",
       "name": "Jane Doe",
       "email": "jane@example.com",
-      "role": "member",
+      "role": "editor",
       "transactionCount": 32,
       "totalSpent": 890.25,
       "joinedAt": "2026-01-21T14:30:00Z"
@@ -370,11 +401,13 @@ List all group members. The list is read from `group_memberships` joined with `u
 }
 ```
 
+**Role values:** `owner`, `admin`, `editor`, `viewer`
+
 ---
 
-### POST `/groups/:groupId/invite`
+### POST `/ledgers/:ledgerId/invite`
 
-Invite a member to group (admin only).
+Invite a member to ledger (admin/owner only).
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -382,7 +415,7 @@ Invite a member to group (admin only).
 ```json
 {
   "email": "newmember@example.com",
-  "role": "member"
+  "role": "editor"
 }
 ```
 
@@ -402,9 +435,9 @@ Invite a member to group (admin only).
 
 ---
 
-### POST `/groups/join`
+### POST `/ledgers/join`
 
-Join a group using invite code.
+Join a ledger using invite code.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -420,10 +453,10 @@ Join a group using invite code.
 {
   "success": true,
   "data": {
-    "group": {
-      "id": "group_456",
+    "ledger": {
+      "id": "ledger_456",
       "name": "Family Budget",
-      "role": "member"
+      "role": "editor"
     }
   }
 }
@@ -431,24 +464,24 @@ Join a group using invite code.
 
 **Errors:**
 - `400` - Invalid or expired invite code
-- `409` - User already member of group
+- `409` - User already member of ledger
 
 ---
 
-### PATCH `/groups/:groupId/members/:userId`
+### PATCH `/ledgers/:ledgerId/members/:userId`
 
-Change a member's role within the group (admin only). Updates the `role` column on the corresponding `group_memberships` row. Cannot demote the last admin.
+Change a member's role within the ledger. Owner can change any role; admin can change roles below admin (i.e., `editor` ↔ `viewer`) but cannot modify owners or other admins. Updates the `role` column on the corresponding `ledger_members` row. **Last-owner guard:** refuses if demoting the only `owner`.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Request Body:**
 ```json
 {
-  "role": "admin"
+  "role": "editor"
 }
 ```
 
-`role`: `"admin"` | `"member"`
+`role`: `"owner"` | `"admin"` | `"editor"` | `"viewer"`
 
 **Response:** `200 OK`
 ```json
@@ -456,30 +489,30 @@ Change a member's role within the group (admin only). Updates the `role` column 
   "success": true,
   "data": {
     "userId": "user_456",
-    "role": "admin"
+    "role": "editor"
   }
 }
 ```
 
 **Errors:**
-- `403 AUTH_INSUFFICIENT_PERMISSIONS` - Requester is not admin of this group
-- `404 NOT_FOUND` - Target user is not a member of this group
-- `409 LAST_ADMIN` - Refused: would leave the group with zero admins
+- `403 AUTH_INSUFFICIENT_PERMISSIONS` - Requester lacks the role to perform this change (e.g., admin trying to modify an owner)
+- `404 NOT_FOUND` - Target user is not a member of this ledger
+- `409 LAST_OWNER` - Refused: would leave the ledger with zero `owner`s
 
 ---
 
-### DELETE `/groups/:groupId/members/:userId`
+### DELETE `/ledgers/:ledgerId/members/:userId`
 
-Remove a member from a group (admin only, cannot remove self). Deletes the matching `group_memberships` row. Refuses if it would leave the group without an admin.
+Remove a member from a ledger (owner/admin only; admins cannot remove owners; nobody can remove themselves via this endpoint — use the self-leave route in Phase 3). Deletes the matching `ledger_members` row. **Last-owner guard:** refuses if removing the only `owner`.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Response:** `200 OK`
 
 **Errors:**
-- `403 AUTH_INSUFFICIENT_PERMISSIONS` - Not authorized or trying to remove self (`CANNOT_REMOVE_SELF`)
+- `403 AUTH_INSUFFICIENT_PERMISSIONS` - Not authorized, trying to remove self (`CANNOT_REMOVE_SELF`), or admin trying to remove an owner
 - `404 NOT_FOUND` - Member not found
-- `409 LAST_ADMIN` - Refused: would leave the group with zero admins
+- `409 LAST_OWNER` - Refused: would leave the ledger with zero `owner`s
 
 ---
 
@@ -494,7 +527,7 @@ Create a new transaction.
 **Request Body:**
 ```json
 {
-  "groupId": "group_456",
+  "ledgerId": "ledger_456",
   "type": "expense",
   "amount": 45.99,
   "category": "food",
@@ -517,7 +550,7 @@ Create a new transaction.
   "success": true,
   "data": {
     "id": "txn_789",
-    "groupId": "group_456",
+    "ledgerId": "ledger_456",
     "userId": "user_123",
     "type": "expense",
     "amount": 45.99,
@@ -533,7 +566,7 @@ Create a new transaction.
 
 **Errors:**
 - `400` - Validation error (invalid amount, category, etc.)
-- `403` - User not member of group
+- `403` - User not member of ledger
 
 ---
 
@@ -544,7 +577,7 @@ List transactions with filtering and pagination.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required): Filter by group
+- `ledgerId` (required): Filter by ledger
 - `type`: "expense" | "income" | "all" (default: "all")
 - `category`: Filter by category (comma-separated for multiple)
 - `visibility`: "personal" | "shared" | "all" (default: "all")
@@ -559,7 +592,7 @@ List transactions with filtering and pagination.
 
 **Example Request:**
 ```
-GET /transactions?groupId=group_456&type=expense&startDate=2026-01-01&page=1&pageSize=20
+GET /transactions?ledgerId=ledger_456&type=expense&startDate=2026-01-01&page=1&pageSize=20
 ```
 
 **Response:** `200 OK`
@@ -569,7 +602,7 @@ GET /transactions?groupId=group_456&type=expense&startDate=2026-01-01&page=1&pag
   "data": [
     {
       "id": "txn_789",
-      "groupId": "group_456",
+      "ledgerId": "ledger_456",
       "userId": "user_123",
       "userName": "John Doe",
       "type": "expense",
@@ -604,7 +637,7 @@ Get single transaction details.
   "success": true,
   "data": {
     "id": "txn_789",
-    "groupId": "group_456",
+    "ledgerId": "ledger_456",
     "userId": "user_123",
     "userName": "John Doe",
     "type": "expense",
@@ -715,8 +748,8 @@ Get financial summary for a period.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required): Group ID. Requester must have a `group_memberships` row for this group, otherwise `403`.
-- `scope`: "personal" | "group" (default: "personal")
+- `ledgerId` (required): Ledger ID. Requester must have a `ledger_members` row for this ledger, otherwise `403`.
+- `scope`: `"personal"` | `"ledger"` (default: `"personal"`)
 - `startDate`: ISO 8601 date
 - `endDate`: ISO 8601 date
 - `userId`: Specific user (if scope=personal)
@@ -724,7 +757,7 @@ Get financial summary for a period.
 **Visibility rules:**
 - `scope=personal`, viewer = subject: all transactions included.
 - `scope=personal`, viewer ≠ subject: only `visibility=shared` transactions of the subject are included.
-- `scope=group`: all `visibility=shared` transactions in the group are included, plus the viewer's own personal ones.
+- `scope=ledger`: all `visibility=shared` transactions in the ledger are included, plus the viewer's own personal ones.
 
 **Response:** `200 OK`
 ```json
@@ -778,8 +811,8 @@ Get spending/income trends over time.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required)
-- `scope`: "personal" | "group"
+- `ledgerId` (required)
+- `scope`: "personal" | "ledger"
 - `startDate`: ISO 8601 date
 - `endDate`: ISO 8601 date
 - `interval`: "day" | "week" | "month" (default: "day")
@@ -818,8 +851,8 @@ Get breakdown of spending by category.
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required)
-- `scope`: "personal" | "group"
+- `ledgerId` (required)
+- `scope`: "personal" | "ledger"
 - `startDate`: ISO 8601 date
 - `endDate`: ISO 8601 date
 - `type`: "expense" | "income" | "all"
@@ -870,9 +903,9 @@ Get current user profile.
     "id": "user_123",
     "name": "John Doe",
     "email": "john@example.com",
-    "groups": [
+    "ledgers": [
       {
-        "id": "group_456",
+        "id": "ledger_456",
         "name": "Family Budget",
         "role": "admin",
         "memberCount": 4
@@ -932,7 +965,7 @@ Change user password.
 
 > **Phase 5+ — not in MVP.** Until shipped, account closure is a manual operator action that sets `users.deleted_at` directly. The contract below is documented now so the eventual implementation is consistent.
 
-Soft-delete the current user's account. Sets `users.deleted_at = now()`. The user's `group_memberships`, `transactions`, and `assets` rows are preserved with attribution — in the UI, their name is shown as **"(deleted user)"** alongside their preserved `name` value (clients may choose to display either). Login is blocked while `deleted_at IS NOT NULL`. All issued refresh tokens are revoked.
+Soft-delete the current user's account. Sets `users.deleted_at = now()`. The user's `ledger_members` and `transactions` rows are preserved with attribution — in the UI, their name is shown as **"(deleted user)"** alongside their preserved `name` value (clients may choose to display either). Login is blocked while `deleted_at IS NOT NULL`. All issued refresh tokens are revoked.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -968,14 +1001,14 @@ Soft-delete the current user's account. Sets `users.deleted_at = now()`. The use
 ### Resources
 - `NOT_FOUND` - Resource not found
 - `ALREADY_EXISTS` - Resource already exists (e.g., duplicate email)
-- `NOT_MEMBER` - User not member of group
+- `NOT_MEMBER` - User not member of ledger
 - `NOT_OWNER` - User doesn't own this resource
 
 ### Business Logic
-- `GROUP_LIMIT_REACHED` - User has reached max groups
+- `LEDGER_LIMIT_REACHED` - User has reached max ledgers
 - `INVITATION_EXPIRED` - Invite code expired
 - `CANNOT_REMOVE_SELF` - Admin cannot remove themselves
-- `LAST_ADMIN` - Cannot remove last admin from group
+- `LAST_OWNER` - Cannot remove owner from ledger
 
 ### Server
 - `INTERNAL_ERROR` - Unexpected server error
@@ -1014,8 +1047,8 @@ Allow clients to subscribe to events:
 - `transaction.created`
 - `transaction.updated`
 - `transaction.deleted`
-- `group.member_added`
-- `group.member_removed`
+- `ledger.member_added`
+- `ledger.member_removed`
 - `budget.limit_reached`
 
 ---
@@ -1033,7 +1066,7 @@ A Postman collection will be provided with example requests for all endpoints.
 ### Sample Test Data
 - Email: `test@example.com`
 - Password: `TestPassword123`
-- Group name: `Test Family`
+- Ledger name: `Test Family`
 
 ---
 

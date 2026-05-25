@@ -45,19 +45,19 @@ Canonical source for input validation rules across the backend (Spring + Jakarta
 
 ---
 
-## Groups
+## Ledgers
 
-### `groups.name`
+### `ledgers.name`
 - Required, string
 - Length: 1–100 (trimmed)
 
-### `groups.currency` and `transactions.currency`
+### `ledgers.currency` and `transactions.currency`
 - Required, string
 - Pattern: exactly 3 uppercase ASCII letters (`^[A-Z]{3}$`)
 - Validated against a static ISO 4217 set — reject unknown codes
-- A transaction's `currency` defaults to the group's `currency` if omitted
+- A transaction's `currency` defaults to the ledger's `currency` if omitted
 
-### `group_memberships.role`
+### `ledger_members.role`
 - Required, string (enum)
 - Values: `admin` | `member`
 

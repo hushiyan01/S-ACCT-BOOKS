@@ -115,13 +115,13 @@ Each lives under `src/components/`. Build in this order:
 
 ## Screens to Build (in order, matching `PRODUCT_SPEC.md`)
 
-1. Auth — Login, Register, Create-Group post-registration step
+1. Auth — Login, Register, Create-Ledger post-registration step
 2. Dashboard
 3. Transaction List (with filters)
 4. Add/Edit Transaction (modal)
 5. Settings / Profile
 6. Reports (Phase 4)
-7. Group Management (Phase 3)
+7. Ledger Management (Phase 3)
 
 For each screen also build:
 - Loading state (skeleton)

@@ -9,7 +9,7 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 - [x] Shared design system approach defined (Material Design 3 tokens shared across web and Android)
 - [x] **Product definition and user flows** — see `docs/project-ideas/PRODUCT_SPEC.md`
 - [x] API specification document — see `docs/implementation-details/API_SPECIFICATION.md`
-- [x] Database schema finalized (includes `group_memberships` join table)
+- [x] Database schema finalized (includes `ledger_members` join table)
 - [x] Backend stack chosen: **Spring Boot 3.x + MySQL 8.x + Flyway**. Money columns: `DECIMAL(15,2)`.
 - [x] Design approach decided: **Claude-driven** — UI is built directly in React + MUI code (no Figma deliverable). See `docs/implementation-details/CLAUDE_DESIGN_GUIDE.md`.
 
@@ -34,17 +34,17 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 - [ ] Set up MySQL 8.x (local via Docker; staging on chosen host)
 - [ ] Configure Testcontainers for integration tests against a real MySQL instance
 - [ ] Implement database schema with Flyway migrations, including:
-  - [ ] `users` table (`name` + `email` + `password_hash` + `deleted_at`; no `username` column, no direct group FK)
-  - [ ] `groups` table
+  - [ ] `users` table (`name` + `email` + `password_hash` + `deleted_at`; no `username` column, no direct ledger FK)
+  - [ ] `ledgers` table (`name`, `currency`, `created_by`)
   - [ ] `refresh_tokens` table (`token_hash`, `expires_at`, `revoked_at`, `last_used_at`)
-  - [ ] `group_memberships` join table with `(user_id, group_id)` unique constraint and indexes on both FKs
+  - [ ] `ledger_members` join table with `(user_id, ledger_id)` unique constraint, indexes on both FKs, and `role` column (`owner` | `admin` | `editor` | `viewer`)
   - [ ] `transactions` table with `visibility`, `transaction_date` as `DATE`, `amount` as `DECIMAL(15,2)`, `currency` as `CHAR(3)`, and `category` as an enum (10 predefined values)
 - [ ] Define `TransactionCategory` enum (10 values) and `GET /categories` controller — no `categories` table needed in MVP
 - [ ] Create authentication system: bcrypt password hashing, JWT access tokens (15 min), DB-backed refresh tokens with rotation (logout sets `revoked_at`)
 - [ ] Login blocked when `users.deleted_at IS NOT NULL`
 - [ ] Implement user registration and login endpoints (login returns the same generic 401 for invalid email or wrong password)
-- [ ] Implement "create group" endpoint that also inserts the creator into `group_memberships` as `admin`
-- [ ] Implement transaction CRUD endpoints with membership-based authorization (verify `(user_id, group_id)` in `group_memberships` before any read/write)
+- [ ] Implement "create ledger" endpoint that also inserts the creator into `ledger_members` as `owner`
+- [ ] Implement transaction CRUD endpoints with membership-based authorization (verify `(user_id, ledger_id)` in `ledger_members` and that the role allows the action before any read/write)
 - [ ] Serve predefined categories from a static list (full category management is Phase 5)
 - [ ] Add input validation and error handling
 - [ ] Write unit and integration tests
@@ -92,32 +92,32 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 - [ ] Write UI and unit tests
 - [ ] Deploy to internal testing track
 
-## Phase 3: Group Features (Est. 3-4 weeks)
+## Phase 3: Ledger Features (Est. 3-4 weeks)
 
 ### Backend
 - [ ] **Choose and integrate an email provider** (deferred from MVP — required before invitations + password reset can ship)
 - [ ] Implement password reset flow:
   - [ ] `POST /auth/password-reset-request` (issues a token, emails it)
   - [ ] `POST /auth/password-reset-confirm` (validates token, updates `password_hash`)
-- [ ] Implement multi-member group management (group creation already exists from MVP; extend with member-level endpoints)
-- [ ] Implement group invitation system (email + invite code; QR is just a render of the same code)
-  - [ ] `POST /groups/:groupId/invite` — issues invite code, optionally emails it
-  - [ ] `POST /groups/join` — accepts code, inserts `group_memberships` row
-- [ ] Role management endpoints:
-  - [ ] `PATCH /groups/:groupId/members/:userId` — change role (admin only, refuse if it would leave zero admins)
-  - [ ] `DELETE /groups/:groupId/members/:userId` — remove member (admin only, same last-admin guard)
-- [ ] Add aggregated group data endpoints (exclude transactions where `visibility=personal` and `user_id != viewer`)
+- [ ] Implement multi-member ledger management (ledger creation already exists from MVP; extend with member-level endpoints)
+- [ ] Implement ledger invitation system (email + invite code; QR is just a render of the same code)
+  - [ ] `POST /ledgers/:ledgerId/invite` — issues invite code, optionally emails it
+  - [ ] `POST /ledgers/join` — accepts code, inserts `ledger_members` row
+- [ ] Role-based access control (`owner` / `admin` / `editor` / `viewer`) with role management endpoints:
+  - [ ] `PATCH /ledgers/:ledgerId/members/:userId` — change role (owner/admin only; admins cannot modify owners; refuse if it would leave zero owners)
+  - [ ] `DELETE /ledgers/:ledgerId/members/:userId` — remove member (owner/admin only, same last-owner guard)
+- [ ] Add aggregated ledger data endpoints (exclude transactions where `visibility=personal` and `user_id != viewer`)
 - [ ] Update transaction visibility logic
 - [ ] Update `/users/me` and login responses to include the user's full membership list
 
 ### Frontend (Web + Android)
-- [ ] Build group creation flow
-- [ ] Build group invitation system
-- [ ] Build group member management UI
-- [ ] Build shared group dashboard
-- [ ] Add group selector in navigation
-- [ ] Implement group-specific transaction filtering
-- [ ] Add permission checks in UI
+- [ ] Build ledger creation flow
+- [ ] Build ledger invitation system
+- [ ] Build ledger member management UI with role display
+- [ ] Build shared ledger dashboard
+- [ ] Add ledger selector in navigation (support multiple ledgers)
+- [ ] Implement ledger-specific transaction filtering
+- [ ] Add permission checks in UI based on role
 - [ ] Update both web and Android apps
 
 ## Phase 4: Analytics & Reports (Est. 2-3 weeks)

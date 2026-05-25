@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-S-ACCT-BOOKS is a shared family accounting application that enables family members to track personal and group finances collaboratively. The MVP ships as a responsive web app; a native Android app follows in Phase 2 and reaches feature parity with the web. Users can log daily expenses and income, view personal financial history, and access aggregated family-wide financial insights.
+S-ACCT-BOOKS is a shared family accounting application that enables family members to track personal and shared finances collaboratively. The MVP ships as a responsive web app; a native Android app follows in Phase 2 and reaches feature parity with the web. Users can log daily expenses and income, view personal financial history, and access aggregated ledger-wide financial insights. A user can belong to multiple ledgers (e.g., personal, family, roommates).
 
 **Target Users:** Families, roommates, couples, or any small group that shares expenses and wants financial transparency.
 
@@ -10,13 +10,13 @@ S-ACCT-BOOKS is a shared family accounting application that enables family membe
 
 ## User Personas
 
-### Primary Persona: Sarah (Group Admin)
+### Primary Persona: Sarah (Ledger Owner)
 - 35-year-old parent managing household finances
 - Wants to track family spending and create budgets
 - Needs visibility into all family expenses
 - Uses primarily web app for detailed reports, mobile for quick checks
 
-### Secondary Persona: Mike (Group Member)
+### Secondary Persona: Mike (Ledger Member)
 - 16-year-old teenager with allowance
 - Logs personal expenses via mobile app
 - Wants privacy for personal purchases
@@ -32,17 +32,17 @@ S-ACCT-BOOKS is a shared family accounting application that enables family membe
 
 ### Authentication & Onboarding
 - As a new user, I want to register with email/password so I can create an account
-- As a new user, I want to create a new group during signup so my family can join
+- As a new user, I want to create a new ledger during signup so my family can join
 - As an existing user, I want to log in securely so I can access my financial data
-- As a group admin, I want to invite family members via email/code so they can join my group
-- As an invited user, I want to accept a group invitation so I can join my family's account
+- As a ledger admin, I want to invite family members via email/code so they can join my ledger
+- As an invited user, I want to accept a ledger invitation so I can join my family's ledger
 
 ### Transaction Management
 - As a user, I want to log an expense with amount, category, and notes so I can track my spending
 - As a user, I want to log income so I can see my total cash flow
 - As a user, I want to edit/delete my transactions so I can fix mistakes
 - As a user, I want to attach receipts to transactions so I have proof of purchase (Phase 5)
-- As a user, I want to mark transactions as "shared" so the group knows it's a common expense
+- As a user, I want to mark transactions as "shared" so the ledger members know it's a common expense
 - As a user, I want to categorize transactions so I can analyze spending by category
 
 ### Dashboard & Viewing
@@ -50,33 +50,33 @@ S-ACCT-BOOKS is a shared family accounting application that enables family membe
 - As a user, I want to view recent transactions in chronological order
 - As a user, I want to filter transactions by date, category, or type
 - As a user, I want to search transactions by description
-- As a group member, I want to switch between personal and group view
+- As a ledger member, I want to switch between personal and ledger view
 
-### Group Features
-- As a group admin, I want to view all group members so I can manage the group
-- As a group admin, I want to remove members if needed
-- As a group member, I want to see aggregated group spending
-- As a group member, I want to see who spent what (if privacy settings allow)
-- As a user, I want to control whether my transactions are visible to the group
+### Ledger Features
+- As a ledger admin, I want to view all ledger members so I can manage the ledger
+- As a ledger admin, I want to remove members if needed
+- As a ledger member, I want to see aggregated ledger spending
+- As a ledger member, I want to see who spent what (if privacy settings allow)
+- As a user, I want to control whether my transactions are visible to the ledger
 
 ### Reports & Analytics
 - As a user, I want to see spending breakdown by category in a pie chart
 - As a user, I want to see spending trends over time in a line chart
 - As a user, I want to export my data to CSV/PDF for tax purposes
 - As a user, I want to compare spending across different time periods
-- As a group admin, I want to see which categories the family spends most on
+- As a ledger admin, I want to see which categories the family spends most on
 
 ### Budgets (Phase 4)
 - As a user, I want to set monthly budget limits per category
 - As a user, I want to receive notifications when approaching budget limit
-- As a group admin, I want to set family-wide budget goals
+- As a ledger admin, I want to set family-wide budget goals
 
 ## Core Features by Priority
 
 ### Must Have (MVP - Phase 1, Web)
 1. Responsive web interface (React + Vite + Material UI)
 2. User registration and authentication (JWT-based)
-3. Single-user group creation on first login (multi-user invitations come in Phase 3)
+3. Single-user ledger creation on first login (multi-user invitations come in Phase 3)
 4. Add/edit/delete transactions (expense and income)
 5. Transaction categorization (predefined categories — fully managed list is Phase 5)
 6. Dashboard with balance and recent transactions
@@ -87,13 +87,13 @@ S-ACCT-BOOKS is a shared family accounting application that enables family membe
 1. Android mobile app with feature parity with web MVP
 2. Offline support in mobile app
 
-### Should Have (Phase 3, Groups)
-1. Group invitation system (email + invite code)
-2. Multi-user groups with per-group roles via `group_memberships`
-3. Shared group dashboard
-4. Aggregated group financial views (excludes `visibility=personal` transactions)
+### Should Have (Phase 3, Ledgers)
+1. Ledger invitation system (email + invite code)
+2. Multi-user ledgers with per-ledger roles (`owner` / `admin` / `editor` / `viewer`) via `ledger_members`
+3. Shared ledger dashboard
+4. Aggregated ledger financial views (excludes `visibility=personal` transactions)
 5. Privacy controls (per-transaction `personal` vs `shared` visibility)
-6. Group switcher (a user can belong to multiple groups)
+6. Ledger switcher (a user can belong to multiple ledgers)
 
 ### Could Have (Phase 4-5)
 1. Charts and visual analytics
@@ -116,23 +116,36 @@ S-ACCT-BOOKS is a shared family accounting application that enables family membe
 
 ## User Flows
 
-### Flow 1: New User Registration & Group Creation
+### Flow 1: New User Registration & Ledger Creation
 
 ```
 START → Registration Screen
   ↓
 Enter email, password, name
   ↓
-Account created (no group yet — user row exists but no group_memberships row)
+Account created (no ledger yet — user row exists but no ledger_members row)
   ↓
-Create New Group or Join Existing
-  ├─ Create New: enter group name + currency → group row + group_memberships(role=admin) inserted
-  └─ Join Existing (Phase 3): enter invite code → group_memberships(role=member) inserted
+Create New Ledger or Join Existing
+  ├─ Create New: enter ledger name + currency → ledger row + ledger_members(role=owner) inserted
+  └─ Join Existing (Phase 3): enter invite code → ledger_members(role=editor) inserted (or whatever role the invite carries)
   ↓
 Redirect to Dashboard
 ```
 
 > Note: in the MVP (Phase 1), only "Create New" is offered. The "Join Existing" branch is enabled in Phase 3 when invitations ship.
+
+```mermaid
+flowchart TD
+    A[START] --> B[Registration Screen]
+    B --> C[Enter email, password, name]
+    C --> D{Create New Ledger or Join Existing?}
+    D -->|Create New| E[Enter ledger name, currency]
+    D -->|Join Existing - Phase 3| F[Enter invite code]
+    E --> G[ledger_members row inserted role=owner]
+    F --> H[ledger_members row inserted role=editor]
+    G --> I[Redirect to Dashboard]
+    H --> I
+```
 
 ### Flow 2: Adding an Expense
 
@@ -155,10 +168,25 @@ Validate → Show success message
 Return to Dashboard (transaction appears in list)
 ```
 
+```mermaid
+flowchart TD
+    A[Dashboard] --> B[Click 'Add Expense' button]
+    B --> C[Transaction Form]
+    C --> D[Enter Amount]
+    D --> E[Select Category]
+    E --> F[Add Description]
+    F --> G[Choose Date]
+    G --> H[Set Visibility]
+    H --> I[Click 'Save']
+    I --> J{Validate}
+    J -->|Success| K[Show success message]
+    K --> L[Return to Dashboard]
+```
+
 ### Flow 3: Inviting Family Member
 
 ```
-Dashboard → Settings → Group Management
+Dashboard → Settings → Ledger Management
   ↓
 Click "Invite Member"
   ↓
@@ -169,7 +197,24 @@ Choose invitation method:
   ↓
 Send invitation
   ↓
-New user receives invite → Registers → Auto-joins group
+New user receives invite → Registers → Auto-joins ledger
+```
+
+```mermaid
+flowchart TD
+    A[Dashboard] --> B[Settings]
+    B --> C[Ledger Management]
+    C --> D[Click 'Invite Member']
+    D --> E{Choose invitation method}
+    E -->|Email| F[Enter email address]
+    E -->|Code| G[Share invite code]
+    E -->|QR| H[Generate QR code]
+    F --> I[Send invitation]
+    G --> I
+    H --> I
+    I --> J[New user receives invite]
+    J --> K[Registers]
+    K --> L[Auto-joins ledger]
 ```
 
 ### Flow 4: Viewing Reports
@@ -184,28 +229,58 @@ Select report type:
   ↓
 Select date range (this month, last 3 months, custom)
   ↓
-Select scope: Personal or Group
+Select scope: Personal or Ledger
   ↓
 View charts and insights
   ↓
 (Optional) Export to PDF/CSV
 ```
 
-### Flow 5: Switching Between Personal and Group View
+```mermaid
+flowchart TD
+    A[Dashboard] --> B[Click 'Reports' tab]
+    B --> C{Select report type}
+    C -->|Category| D[Spending by Category]
+    C -->|Trends| E[Trends Over Time]
+    C -->|Comparison| F[Income vs Expenses]
+    D --> G[Select date range]
+    E --> G
+    F --> G
+    G --> H[Select scope: Personal/Ledger]
+    H --> I[View charts and insights]
+    I --> J{Export?}
+    J -->|Yes| K[Export to PDF/CSV]
+    J -->|No| L[Done]
+```
+
+### Flow 5: Switching Between Personal and Ledger View
 
 ```
 Dashboard (Personal view by default)
   ↓
-User clicks group selector in header
+User clicks ledger selector in header
   ↓
-Dropdown shows: "Personal" | "Group Name"
+Dropdown shows: "Personal" | "Ledger Name"
   ↓
-Select "Group Name"
+Select "Ledger Name"
   ↓
 Dashboard updates to show:
-  - Group total balance
-  - All group transactions
-  - Group spending breakdown
+  - Ledger total balance
+  - All ledger transactions
+  - Ledger spending breakdown
+```
+
+```mermaid
+flowchart TD
+    A[Dashboard - Personal view] --> B[Click ledger selector in header]
+    B --> C[Dropdown shows options]
+    C --> D{Select view}
+    D -->|Personal| E[Stay on Personal view]
+    D -->|Ledger Name| F[Switch to Ledger view]
+    F --> G[Dashboard updates]
+    G --> H[Show Ledger total balance]
+    G --> I[Show All ledger transactions]
+    G --> J[Show Ledger spending breakdown]
 ```
 
 ## Screen Specifications
@@ -227,23 +302,23 @@ Dashboard updates to show:
 - Confirm password input field
 - "Sign Up" button
 - "Already have an account? Login" link
-- After signup → "Create or Join Group" modal
+- After signup → "Create or Join Ledger" modal
 
-**Create/Join Group Modal**
-- Two tabs: "Create New Group" | "Join Existing"
+**Create/Join Ledger Modal**
+- Two tabs: "Create New Ledger" | "Join Existing"
 - Create tab:
-  - Group name input
+  - Ledger name input
   - Currency selector (dropdown)
-  - "Create Group" button
+  - "Create Ledger" button
 - Join tab:
   - Invite code input
-  - "Join Group" button
+  - "Join Ledger" button
 
 ### 2. Dashboard (Main Screen)
 
 **Header Section**
 - App logo/name
-- Group selector dropdown (populated from the user's `group_memberships`; visible if the user has 2+ memberships)
+- Ledger selector dropdown (populated from the user's `ledger_members`; visible if the user has 2+ memberships)
 - User profile icon (click → settings menu)
 - Notification icon (future)
 
@@ -274,7 +349,7 @@ Dashboard updates to show:
 - Dashboard
 - Transactions
 - Reports
-- Group Management
+- Ledger Management
 - Settings
 
 ### 3. Transaction List Screen
@@ -306,7 +381,7 @@ Dashboard updates to show:
 - Category selector (grid of icons or dropdown)
 - Description text field
 - Date picker (default: today)
-- Visibility toggle: Personal | Shared (if in group)
+- Visibility toggle: Personal | Shared (if in ledger)
 - Receipt attachment (Phase 5): Camera or file upload
 
 **Actions**
@@ -324,7 +399,7 @@ Dashboard updates to show:
 
 **Filters**
 - Date range selector
-- Scope: Personal | Group
+- Scope: Personal | Ledger
 - Categories (include/exclude)
 
 **Overview Tab**
@@ -347,33 +422,33 @@ Dashboard updates to show:
 - Compare current period to previous
 - Year-over-year comparison
 
-### 6. Group Management Screen
+### 6. Ledger Management Screen
 
-**Group Info Section**
-- Group name
+**Ledger Info Section**
+- Ledger name
 - Creation date
 - Currency
 - Total members
 
-**Members List** (sourced from `group_memberships` joined with `users`)
+**Members List** (sourced from `ledger_members` joined with `users`)
 - Each member card shows:
   - Name
   - Email
-  - Role: Admin | Member (read from `group_memberships.role`)
+  - Role: Owner / Admin / Editor / Viewer (read from `ledger_members.role`)
   - Total transactions count (excludes other members' personal transactions)
-  - Actions (admin only): Remove, Change role
-- Admin actions update the corresponding `group_memberships` row (last admin cannot be removed/demoted).
+  - Actions (owner/admin only): Remove, Change role (admin cannot modify owners)
+- Role-change and remove actions update the corresponding `ledger_members` row (last `owner` cannot be removed or demoted).
 
 **Invitation Section**
 - "Invite New Member" button
 - Active invitations list (pending)
 - Option to resend or revoke invitation
 
-**Group Settings**
-- Rename group
+**Ledger Settings**
+- Rename ledger
 - Change default currency
 - Privacy settings
-- Leave group (members) / Delete group (admin)
+- Leave ledger (members) / Delete ledger (owner)
 
 ### 7. Settings Screen
 
@@ -517,8 +592,8 @@ The "design phase" is replaced by direct React + MUI implementation in `src/`. T
 - XSS and CSRF protection
 
 ### Data Privacy
-- Users only see their own group's data
-- Personal transactions can be hidden from group view
+- Users only see ledgers they have access to
+- Personal transactions can be hidden from ledger view
 - Admin cannot edit other users' transactions
 - Data deletion on account removal (or anonymization)
 
@@ -531,7 +606,7 @@ The "design phase" is replaced by direct React + MUI implementation in `src/`. T
 
 ### User Acquisition
 - Number of registered users
-- Number of active groups
+- Number of active ledgers
 - Invitation acceptance rate
 
 ### Engagement
@@ -553,9 +628,9 @@ The "design phase" is replaced by direct React + MUI implementation in `src/`. T
 
 ## Open Questions for Product Definition
 
-1. **Privacy Model:** Should group admins see all transactions or only "shared" ones?
+1. **Privacy Model:** Should ledger admins see all transactions or only "shared" ones?
 2. **Transaction Ownership:** Can admin edit/delete other members' transactions?
-3. **Group Limits:** Maximum members per group? Maximum transactions per month?
+3. **Ledger Limits:** Maximum members per ledger? Maximum transactions per month?
 4. **Categories:** Fixed list or user-customizable? Allow custom category creation?
 5. **Data Retention:** How long to keep transaction history? Archival strategy?
 6. **Monetization:** Free tier limits? Paid features? Freemium model?
