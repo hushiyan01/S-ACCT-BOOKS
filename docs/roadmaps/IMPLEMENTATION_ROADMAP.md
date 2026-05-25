@@ -5,12 +5,13 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 ## Pre-Implementation (Current Phase)
 
 - [x] Initial project concept and architecture planning
-- [x] Technology stack selection (React web, Android native, backend options)
-- [x] Shared design system approach defined
-- [ ] **Product definition and user flows (IN PROGRESS)**
-- [ ] Figma design mockups and prototypes
-- [ ] API specification document
-- [ ] Database schema finalization
+- [x] MVP platform decided: **Web first** (React + Vite + Material UI). Android in Phase 2.
+- [x] Shared design system approach defined (Material Design 3 tokens shared across web and Android)
+- [x] **Product definition and user flows** — see `docs/project-ideas/PRODUCT_SPEC.md`
+- [x] API specification document — see `docs/implementation-details/API_SPECIFICATION.md`
+- [x] Database schema finalized (includes `ledger_members` join table)
+- [x] Backend stack chosen: **Spring Boot 3.x + MySQL 8.x + Flyway**. Money columns: `DECIMAL(15,2)`.
+- [x] Design approach decided: **Claude-driven** — UI is built directly in React + MUI code (no Figma deliverable). See `docs/implementation-details/CLAUDE_DESIGN_GUIDE.md`.
 
 ## Phase 1: MVP - Backend + Web (Est. 4-6 weeks)
 
@@ -29,13 +30,22 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 - [ ] Generate Kotlin constants for Android
 
 ### Backend Development
-- [ ] Choose and set up backend framework (Spring Boot/Node.js/FastAPI)
-- [ ] Set up PostgreSQL database
-- [ ] Implement database schema with migrations
-- [ ] Create authentication system (JWT + refresh tokens)
-- [ ] Implement user registration and login endpoints
-- [ ] Implement transaction CRUD endpoints
-- [ ] Implement category management
+- [ ] Initialize Spring Boot 3.x project (Java 21) with Spring Web, Spring Data JPA, Spring Security, Validation, Flyway, MySQL Connector
+- [ ] Set up MySQL 8.x (local via Docker; staging on chosen host)
+- [ ] Configure Testcontainers for integration tests against a real MySQL instance
+- [ ] Implement database schema with Flyway migrations, including:
+  - [ ] `users` table (`name` + `email` + `password_hash` + `deleted_at`; no `username` column, no direct ledger FK)
+  - [ ] `ledgers` table (`name`, `currency`, `created_by`)
+  - [ ] `refresh_tokens` table (`token_hash`, `expires_at`, `revoked_at`, `last_used_at`)
+  - [ ] `ledger_members` join table with `(user_id, ledger_id)` unique constraint, indexes on both FKs, and `role` column (`owner` | `admin` | `editor` | `viewer`)
+  - [ ] `transactions` table with `visibility`, `transaction_date` as `DATE`, `amount` as `DECIMAL(15,2)`, `currency` as `CHAR(3)`, and `category` as an enum (10 predefined values)
+- [ ] Define `TransactionCategory` enum (10 values) and `GET /categories` controller — no `categories` table needed in MVP
+- [ ] Create authentication system: bcrypt password hashing, JWT access tokens (15 min), DB-backed refresh tokens with rotation (logout sets `revoked_at`)
+- [ ] Login blocked when `users.deleted_at IS NOT NULL`
+- [ ] Implement user registration and login endpoints (login returns the same generic 401 for invalid email or wrong password)
+- [ ] Implement "create ledger" endpoint that also inserts the creator into `ledger_members` as `owner`
+- [ ] Implement transaction CRUD endpoints with membership-based authorization (verify `(user_id, ledger_id)` in `ledger_members` and that the role allows the action before any read/write)
+- [ ] Serve predefined categories from a static list (full category management is Phase 5)
 - [ ] Add input validation and error handling
 - [ ] Write unit and integration tests
 - [ ] Set up API documentation (Swagger/OpenAPI)
@@ -85,12 +95,20 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 ## Phase 3: Ledger Features (Est. 3-4 weeks)
 
 ### Backend
-- [ ] Implement ledger creation and management endpoints
-- [ ] Implement ledger invitation system (decide: email/code/QR)
-- [ ] Add role-based access control (owner/admin/editor/viewer)
-- [ ] Implement ledger member management with roles
-- [ ] Add aggregated ledger data endpoints
+- [ ] **Choose and integrate an email provider** (deferred from MVP — required before invitations + password reset can ship)
+- [ ] Implement password reset flow:
+  - [ ] `POST /auth/password-reset-request` (issues a token, emails it)
+  - [ ] `POST /auth/password-reset-confirm` (validates token, updates `password_hash`)
+- [ ] Implement multi-member ledger management (ledger creation already exists from MVP; extend with member-level endpoints)
+- [ ] Implement ledger invitation system (email + invite code; QR is just a render of the same code)
+  - [ ] `POST /ledgers/:ledgerId/invite` — issues invite code, optionally emails it
+  - [ ] `POST /ledgers/join` — accepts code, inserts `ledger_members` row
+- [ ] Role-based access control (`owner` / `admin` / `editor` / `viewer`) with role management endpoints:
+  - [ ] `PATCH /ledgers/:ledgerId/members/:userId` — change role (owner/admin only; admins cannot modify owners; refuse if it would leave zero owners)
+  - [ ] `DELETE /ledgers/:ledgerId/members/:userId` — remove member (owner/admin only, same last-owner guard)
+- [ ] Add aggregated ledger data endpoints (exclude transactions where `visibility=personal` and `user_id != viewer`)
 - [ ] Update transaction visibility logic
+- [ ] Update `/users/me` and login responses to include the user's full membership list
 
 ### Frontend (Web + Android)
 - [ ] Build ledger creation flow
@@ -127,6 +145,7 @@ This document outlines the step-by-step implementation plan for S-ACCT-BOOKS.
 
 ## Phase 6: Polish & Launch (Est. 2 weeks)
 
+- [ ] **Choose hosting target** (deferred earlier — pick from Fly.io / Render / AWS / GCP / self-hosted)
 - [ ] Performance optimization
 - [ ] Security audit
 - [ ] Accessibility compliance review

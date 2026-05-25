@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-S-ACCT-BOOKS is a shared family accounting application that enables family members to track personal and shared finances collaboratively. Users can log daily expenses and income via web or mobile, view personal financial history, and access aggregated ledger-wide financial insights. Users can belong to multiple ledgers (e.g., personal, family, roommates).
+S-ACCT-BOOKS is a shared family accounting application that enables family members to track personal and shared finances collaboratively. The MVP ships as a responsive web app; a native Android app follows in Phase 2 and reaches feature parity with the web. Users can log daily expenses and income, view personal financial history, and access aggregated ledger-wide financial insights. A user can belong to multiple ledgers (e.g., personal, family, roommates).
 
 **Target Users:** Families, roommates, couples, or any small group that shares expenses and wants financial transparency.
 
@@ -73,24 +73,27 @@ S-ACCT-BOOKS is a shared family accounting application that enables family membe
 
 ## Core Features by Priority
 
-### Must Have (MVP - Phase 1)
-1. User registration and authentication (JWT-based)
-2. Ledger creation
-3. Add/edit/delete transactions (expense and income)
-4. Transaction categorization (predefined categories)
-5. Dashboard with balance and recent transactions
-6. Transaction list with basic filtering (date, type, category)
-7. User profile and settings
-8. Responsive web interface
+### Must Have (MVP - Phase 1, Web)
+1. Responsive web interface (React + Vite + Material UI)
+2. User registration and authentication (JWT-based)
+3. Single-user ledger creation on first login (multi-user invitations come in Phase 3)
+4. Add/edit/delete transactions (expense and income)
+5. Transaction categorization (predefined categories — fully managed list is Phase 5)
+6. Dashboard with balance and recent transactions
+7. Transaction list with basic filtering (date, type, category)
+8. User profile and settings
 
-### Should Have (Phase 2-3)
-1. Android mobile app with feature parity
-2. Ledger invitation system
-3. Multi-user ledger support with roles
-4. Shared ledger dashboard
-5. Aggregated ledger financial views
-6. Privacy controls (personal vs shared transactions)
-7. Offline support in mobile app
+### Should Have (Phase 2, Android)
+1. Android mobile app with feature parity with web MVP
+2. Offline support in mobile app
+
+### Should Have (Phase 3, Ledgers)
+1. Ledger invitation system (email + invite code)
+2. Multi-user ledgers with per-ledger roles (`owner` / `admin` / `editor` / `viewer`) via `ledger_members`
+3. Shared ledger dashboard
+4. Aggregated ledger financial views (excludes `visibility=personal` transactions)
+5. Privacy controls (per-transaction `personal` vs `shared` visibility)
+6. Ledger switcher (a user can belong to multiple ledgers)
 
 ### Could Have (Phase 4-5)
 1. Charts and visual analytics
@@ -120,12 +123,16 @@ START → Registration Screen
   ↓
 Enter email, password, name
   ↓
-Create New Ledger or Join Existing
-  ↓ (Create New)
-Enter ledger name, currency
+Account created (no ledger yet — user row exists but no ledger_members row)
   ↓
-Success → Redirect to Dashboard
+Create New Ledger or Join Existing
+  ├─ Create New: enter ledger name + currency → ledger row + ledger_members(role=owner) inserted
+  └─ Join Existing (Phase 3): enter invite code → ledger_members(role=editor) inserted (or whatever role the invite carries)
+  ↓
+Redirect to Dashboard
 ```
+
+> Note: in the MVP (Phase 1), only "Create New" is offered. The "Join Existing" branch is enabled in Phase 3 when invitations ship.
 
 ```mermaid
 flowchart TD
@@ -133,10 +140,11 @@ flowchart TD
     B --> C[Enter email, password, name]
     C --> D{Create New Ledger or Join Existing?}
     D -->|Create New| E[Enter ledger name, currency]
-    D -->|Join Existing| F[Enter invite code]
-    E --> G[Success]
-    F --> G
-    G --> H[Redirect to Dashboard]
+    D -->|Join Existing - Phase 3| F[Enter invite code]
+    E --> G[ledger_members row inserted role=owner]
+    F --> H[ledger_members row inserted role=editor]
+    G --> I[Redirect to Dashboard]
+    H --> I
 ```
 
 ### Flow 2: Adding an Expense
@@ -284,7 +292,7 @@ flowchart TD
 - Password input field (with show/hide toggle)
 - "Remember me" checkbox
 - "Login" button (primary action)
-- "Forgot password?" link
+- "Forgot password?" link _(Phase 3 — depends on the email service decision; in MVP, link is hidden or shows a "contact support" hint)_
 - "Don't have an account? Sign up" link
 
 **Registration Screen**
@@ -310,7 +318,7 @@ flowchart TD
 
 **Header Section**
 - App logo/name
-- Ledger selector dropdown (user can belong to multiple ledgers)
+- Ledger selector dropdown (populated from the user's `ledger_members`; visible if the user has 2+ memberships)
 - User profile icon (click → settings menu)
 - Notification icon (future)
 
@@ -422,13 +430,14 @@ flowchart TD
 - Currency
 - Total members
 
-**Members List**
+**Members List** (sourced from `ledger_members` joined with `users`)
 - Each member card shows:
   - Name
   - Email
-  - Role: Admin | Member
-  - Total transactions count
-  - Actions (admin only): Remove, Change role
+  - Role: Owner / Admin / Editor / Viewer (read from `ledger_members.role`)
+  - Total transactions count (excludes other members' personal transactions)
+  - Actions (owner/admin only): Remove, Change role (admin cannot modify owners)
+- Role-change and remove actions update the corresponding `ledger_members` row (last `owner` cannot be removed or demoted).
 
 **Invitation Section**
 - "Invite New Member" button
@@ -462,8 +471,8 @@ flowchart TD
 - Budget alert preferences
 
 **Data**
-- Export all data (CSV/JSON)
-- Delete account
+- Export all data (CSV/JSON) _(Phase 4)_
+- Delete account _(Phase 5+ — not in MVP; until then, account closure is a manual operator action)_
 
 **About**
 - App version
@@ -471,7 +480,10 @@ flowchart TD
 - Privacy policy
 - Contact support
 
-## Design Guidelines for Figma
+## Design Guidelines
+
+> The full UI workflow lives in [`../implementation-details/CLAUDE_DESIGN_GUIDE.md`](../implementation-details/CLAUDE_DESIGN_GUIDE.md). The tokens below are the canonical source for the MUI theme.
+
 
 ### Color Palette
 
@@ -552,33 +564,15 @@ flowchart TD
 - Keyboard navigation support
 - Screen reader labels for all interactive elements
 
-## Figma Design Deliverables Checklist
+## UI Build Deliverables (Claude-driven)
 
-### Phase 1: Wireframes
-- [ ] User flow diagrams
-- [ ] Low-fidelity wireframes for all core screens
-- [ ] Navigation structure
-- [ ] Responsive layouts (mobile, tablet, desktop)
+The "design phase" is replaced by direct React + MUI implementation in `src/`. Track UI completion per screen using the **Definition of Done** in `CLAUDE_DESIGN_GUIDE.md`:
 
-### Phase 2: High-Fidelity Mockups
-- [ ] Design system/component library
-- [ ] All screens in light mode
-- [ ] All screens in dark mode (optional for MVP)
-- [ ] Micro-interactions and animations
-- [ ] Loading and error states
-- [ ] Empty states
-
-### Phase 3: Prototype
-- [ ] Interactive prototype with navigation
-- [ ] Key user flows clickable
-- [ ] Transition animations
-- [ ] User testing ready
-
-### Phase 4: Design Specs
-- [ ] Export design tokens (colors, typography, spacing)
-- [ ] Component specifications
-- [ ] Developer handoff documentation
-- [ ] Asset exports (icons, images)
+- [ ] Theme + design tokens implemented in `src/theme/`
+- [ ] Layout primitives (`AppShell`, `PageContainer`) and form primitives built
+- [ ] Each screen in `PRODUCT_SPEC.md` implemented with light + dark mode, loading / empty / error states, verified at 375 / 768 / 1440 px
+- [ ] Accessibility audit passes (axe-core or Lighthouse, WCAG 2.1 AA)
+- [ ] Theme tokens exported as JSON for Phase 2 Android handoff
 
 ## Technical Considerations
 
@@ -649,6 +643,6 @@ flowchart TD
 
 1. Review and finalize product specification
 2. Answer open questions with stakeholders
-3. Create Figma designs based on this spec
-4. Validate designs with potential users
-5. Begin technical implementation (see IMPLEMENTATION_ROADMAP.md)
+3. Stand up the React + MUI app skeleton with the design tokens in `src/theme/`
+4. Build screens directly with Claude per `CLAUDE_DESIGN_GUIDE.md`, validating each in the running dev server
+5. Continue technical implementation (see `IMPLEMENTATION_ROADMAP.md`)
