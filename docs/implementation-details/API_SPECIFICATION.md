@@ -9,6 +9,25 @@
 
 This document defines the RESTful API for S-ACCT-BOOKS backend services. The API follows REST principles with JSON payloads and standard HTTP methods.
 
+### Data Model Note: Users ↔ Groups
+
+A user can belong to multiple groups. Membership is modeled by a `group_memberships` join table (`user_id`, `group_id`, `role`, `joined_at`) with a unique constraint on `(user_id, group_id)`. **All group-scoped endpoints** (transactions, analytics, group reads, member admin actions) must verify the requester has a matching `group_memberships` row before responding. Role (`admin` vs `member`) is per-group, not a global property of the user.
+
+### Data Model Note: Money
+
+All monetary fields (`amount`, `limit_amount`, `value`, analytics totals) are persisted as `DECIMAL(15,2)` in MySQL and exposed in JSON as numbers with up to two decimal places. Server-side they are `BigDecimal`. Range: up to 9,999,999,999,999.99 with cent precision. Currency is a separate `CHAR(3)` ISO 4217 column; mixed currencies within one group are not auto-converted in MVP (single currency per group enforced at write time).
+
+### Tech Stack
+
+- **Backend:** Spring Boot 3.x (Java 21) + Spring Data JPA + Spring Security
+- **Database:** MySQL 8.x with Flyway migrations
+- **Auth:** JWT (access) + DB-backed refresh tokens (`refresh_tokens` table); passwords hashed with bcrypt
+- **Validation:** see [`VALIDATION.md`](./VALIDATION.md) for the canonical per-field rules used by both BE and FE
+
+### Note: Password Reset & Email
+
+There is no email service in MVP. Endpoints for password reset (`/auth/password-reset-request`, `/auth/password-reset-confirm`) and email-based group invites are deferred to **Phase 3**, when an email provider is selected. Until then, password recovery is a manual operator action against the DB.
+
 ## Authentication
 
 ### Authentication Flow
@@ -148,8 +167,7 @@ Authenticate existing user.
 ```
 
 **Errors:**
-- `401` - Invalid credentials
-- `404` - User not found
+- `401 AUTH_INVALID_CREDENTIALS` — returned for both unknown email and wrong password (do not leak which one failed)
 
 ---
 
@@ -182,7 +200,7 @@ Refresh access token using refresh token.
 
 ### POST `/auth/logout`
 
-Invalidate refresh token (optional - can also handle client-side only).
+Revoke the refresh token. Server-side, this sets `revoked_at = now()` on the matching row in `refresh_tokens` (the row is looked up by SHA-256 hash of the supplied token). The corresponding access token is left to expire naturally (≤ 15 min).
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -201,13 +219,17 @@ Invalidate refresh token (optional - can also handle client-side only).
 }
 ```
 
+**Notes:**
+- Idempotent: revoking an already-revoked or unknown token still returns 200 (no info-leak).
+- The refresh endpoint validates `revoked_at IS NULL AND expires_at > now()`. On every successful refresh, the old refresh token is rotated (its `revoked_at` is set) and a new one is issued.
+
 ---
 
 ## 2. Groups
 
 ### POST `/groups`
 
-Create a new group.
+Create a new group. Inserts a new row into `groups` and a `group_memberships` row for the creator with `role=admin`.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -317,7 +339,7 @@ Delete group (admin only). All transactions are deleted.
 
 ### GET `/groups/:groupId/members`
 
-List all group members.
+List all group members. The list is read from `group_memberships` joined with `users`. `transactionCount` and `totalSpent` exclude other members' `visibility=personal` transactions — i.e., the viewer sees their own personal totals fully, but only `shared` totals for other members.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
@@ -413,17 +435,51 @@ Join a group using invite code.
 
 ---
 
+### PATCH `/groups/:groupId/members/:userId`
+
+Change a member's role within the group (admin only). Updates the `role` column on the corresponding `group_memberships` row. Cannot demote the last admin.
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**Request Body:**
+```json
+{
+  "role": "admin"
+}
+```
+
+`role`: `"admin"` | `"member"`
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "user_456",
+    "role": "admin"
+  }
+}
+```
+
+**Errors:**
+- `403 AUTH_INSUFFICIENT_PERMISSIONS` - Requester is not admin of this group
+- `404 NOT_FOUND` - Target user is not a member of this group
+- `409 LAST_ADMIN` - Refused: would leave the group with zero admins
+
+---
+
 ### DELETE `/groups/:groupId/members/:userId`
 
-Remove member from group (admin only, cannot remove self).
+Remove a member from a group (admin only, cannot remove self). Deletes the matching `group_memberships` row. Refuses if it would leave the group without an admin.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Response:** `200 OK`
 
 **Errors:**
-- `403` - Not authorized or trying to remove self
-- `404` - Member not found
+- `403 AUTH_INSUFFICIENT_PERMISSIONS` - Not authorized or trying to remove self (`CANNOT_REMOVE_SELF`)
+- `404 NOT_FOUND` - Member not found
+- `409 LAST_ADMIN` - Refused: would leave the group with zero admins
 
 ---
 
@@ -443,17 +499,17 @@ Create a new transaction.
   "amount": 45.99,
   "category": "food",
   "description": "Grocery shopping at Whole Foods",
-  "date": "2026-01-20T18:30:00Z",
+  "date": "2026-01-20",
   "visibility": "shared"
 }
 ```
 
 **Fields:**
-- `type`: "expense" | "income"
-- `amount`: positive number (decimal)
-- `category`: string (predefined categories)
-- `visibility`: "personal" | "shared"
-- `date`: ISO 8601 timestamp (defaults to now)
+- `type`: `"expense"` | `"income"`
+- `amount`: positive decimal with at most 2 fractional digits; stored as `DECIMAL(15,2)`
+- `category`: one of the 10 predefined category slugs (see `GET /categories`)
+- `visibility`: `"personal"` | `"shared"`
+- `date`: ISO 8601 **date** (`YYYY-MM-DD`) — no time-of-day. Defaults to today (server UTC date).
 
 **Response:** `201 Created`
 ```json
@@ -467,7 +523,7 @@ Create a new transaction.
     "amount": 45.99,
     "category": "food",
     "description": "Grocery shopping at Whole Foods",
-    "date": "2026-01-20T18:30:00Z",
+    "date": "2026-01-20",
     "visibility": "shared",
     "createdAt": "2026-01-20T18:35:00Z",
     "updatedAt": "2026-01-20T18:35:00Z"
@@ -520,7 +576,7 @@ GET /transactions?groupId=group_456&type=expense&startDate=2026-01-01&page=1&pag
       "amount": 45.99,
       "category": "food",
       "description": "Grocery shopping",
-      "date": "2026-01-20T18:30:00Z",
+      "date": "2026-01-20",
       "visibility": "shared",
       "createdAt": "2026-01-20T18:35:00Z"
     }
@@ -555,7 +611,7 @@ Get single transaction details.
     "amount": 45.99,
     "category": "food",
     "description": "Grocery shopping at Whole Foods",
-    "date": "2026-01-20T18:30:00Z",
+    "date": "2026-01-20",
     "visibility": "shared",
     "createdAt": "2026-01-20T18:35:00Z",
     "updatedAt": "2026-01-20T18:35:00Z"
@@ -582,7 +638,7 @@ Update transaction (only own transactions).
   "amount": 50.00,
   "category": "food",
   "description": "Updated description",
-  "date": "2026-01-20T18:30:00Z",
+  "date": "2026-01-20",
   "visibility": "personal"
 }
 ```
@@ -624,31 +680,23 @@ Get list of available transaction categories.
 **Headers:** `Authorization: Bearer <accessToken>` (optional for public categories)
 
 **Response:** `200 OK`
+
+The list is static (same for all users in MVP) — backed by a Java/Kotlin enum, not a `categories` table.
+
 ```json
 {
   "success": true,
   "data": [
-    {
-      "id": "cat_food",
-      "name": "Food & Dining",
-      "icon": "🍔",
-      "color": "#FF6B6B",
-      "type": "expense"
-    },
-    {
-      "id": "cat_transport",
-      "name": "Transportation",
-      "icon": "🚗",
-      "color": "#4ECDC4",
-      "type": "expense"
-    },
-    {
-      "id": "cat_salary",
-      "name": "Salary",
-      "icon": "💼",
-      "color": "#4CAF50",
-      "type": "income"
-    }
+    { "id": "food",          "name": "Food & Dining",     "icon": "🍔", "color": "#FF6B6B", "type": "expense" },
+    { "id": "transport",     "name": "Transportation",    "icon": "🚗", "color": "#4ECDC4", "type": "expense" },
+    { "id": "shopping",      "name": "Shopping",          "icon": "🛍️", "color": "#FFA94D", "type": "expense" },
+    { "id": "entertainment", "name": "Entertainment",     "icon": "🎬", "color": "#A29BFE", "type": "expense" },
+    { "id": "healthcare",    "name": "Healthcare",        "icon": "⚕️", "color": "#FF7675", "type": "expense" },
+    { "id": "education",     "name": "Education",         "icon": "📚", "color": "#74B9FF", "type": "expense" },
+    { "id": "bills",         "name": "Bills & Utilities", "icon": "💡", "color": "#FDCB6E", "type": "expense" },
+    { "id": "salary",        "name": "Salary",            "icon": "💼", "color": "#4CAF50", "type": "income"  },
+    { "id": "investment",    "name": "Investment",        "icon": "📈", "color": "#00B894", "type": "both"    },
+    { "id": "other",         "name": "Other",             "icon": "•••", "color": "#95A5A6", "type": "both"    }
   ]
 }
 ```
@@ -661,14 +709,22 @@ Get list of available transaction categories.
 
 Get financial summary for a period.
 
+**Opening balance computation:**
+`opening` is the sum of all the in-scope transactions whose `transaction_date < startDate` (income contributes positively, expense negatively). `closing = opening + change`. `changePercent = (change / opening) * 100`, **omitted from the response when `opening` is 0** to avoid divide-by-zero — clients should treat its absence as "no comparable prior balance."
+
 **Headers:** `Authorization: Bearer <accessToken>`
 
 **Query Parameters:**
-- `groupId` (required): Group ID
+- `groupId` (required): Group ID. Requester must have a `group_memberships` row for this group, otherwise `403`.
 - `scope`: "personal" | "group" (default: "personal")
 - `startDate`: ISO 8601 date
 - `endDate`: ISO 8601 date
 - `userId`: Specific user (if scope=personal)
+
+**Visibility rules:**
+- `scope=personal`, viewer = subject: all transactions included.
+- `scope=personal`, viewer ≠ subject: only `visibility=shared` transactions of the subject are included.
+- `scope=group`: all `visibility=shared` transactions in the group are included, plus the viewer's own personal ones.
 
 **Response:** `200 OK`
 ```json
@@ -874,7 +930,9 @@ Change user password.
 
 ### DELETE `/users/me`
 
-Delete user account (soft delete - mark as deleted).
+> **Phase 5+ — not in MVP.** Until shipped, account closure is a manual operator action that sets `users.deleted_at` directly. The contract below is documented now so the eventual implementation is consistent.
+
+Soft-delete the current user's account. Sets `users.deleted_at = now()`. The user's `group_memberships`, `transactions`, and `assets` rows are preserved with attribution — in the UI, their name is shown as **"(deleted user)"** alongside their preserved `name` value (clients may choose to display either). Login is blocked while `deleted_at IS NOT NULL`. All issued refresh tokens are revoked.
 
 **Headers:** `Authorization: Bearer <accessToken>`
 

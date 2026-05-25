@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-S-ACCT-BOOKS is a shared family accounting application that enables family members to track personal and group finances collaboratively. Users can log daily expenses and income via web or mobile, view personal financial history, and access aggregated family-wide financial insights.
+S-ACCT-BOOKS is a shared family accounting application that enables family members to track personal and group finances collaboratively. The MVP ships as a responsive web app; a native Android app follows in Phase 2 and reaches feature parity with the web. Users can log daily expenses and income, view personal financial history, and access aggregated family-wide financial insights.
 
 **Target Users:** Families, roommates, couples, or any small group that shares expenses and wants financial transparency.
 
@@ -73,24 +73,27 @@ S-ACCT-BOOKS is a shared family accounting application that enables family membe
 
 ## Core Features by Priority
 
-### Must Have (MVP - Phase 1)
-1. User registration and authentication (JWT-based)
-2. Group creation
-3. Add/edit/delete transactions (expense and income)
-4. Transaction categorization (predefined categories)
-5. Dashboard with balance and recent transactions
-6. Transaction list with basic filtering (date, type, category)
-7. User profile and settings
-8. Responsive web interface
+### Must Have (MVP - Phase 1, Web)
+1. Responsive web interface (React + Vite + Material UI)
+2. User registration and authentication (JWT-based)
+3. Single-user group creation on first login (multi-user invitations come in Phase 3)
+4. Add/edit/delete transactions (expense and income)
+5. Transaction categorization (predefined categories — fully managed list is Phase 5)
+6. Dashboard with balance and recent transactions
+7. Transaction list with basic filtering (date, type, category)
+8. User profile and settings
 
-### Should Have (Phase 2-3)
-1. Android mobile app with feature parity
-2. Group invitation system
-3. Multi-user group support with roles
-4. Shared group dashboard
-5. Aggregated group financial views
-6. Privacy controls (personal vs shared transactions)
-7. Offline support in mobile app
+### Should Have (Phase 2, Android)
+1. Android mobile app with feature parity with web MVP
+2. Offline support in mobile app
+
+### Should Have (Phase 3, Groups)
+1. Group invitation system (email + invite code)
+2. Multi-user groups with per-group roles via `group_memberships`
+3. Shared group dashboard
+4. Aggregated group financial views (excludes `visibility=personal` transactions)
+5. Privacy controls (per-transaction `personal` vs `shared` visibility)
+6. Group switcher (a user can belong to multiple groups)
 
 ### Could Have (Phase 4-5)
 1. Charts and visual analytics
@@ -120,12 +123,16 @@ START → Registration Screen
   ↓
 Enter email, password, name
   ↓
-Create New Group or Join Existing
-  ↓ (Create New)
-Enter group name, currency
+Account created (no group yet — user row exists but no group_memberships row)
   ↓
-Success → Redirect to Dashboard
+Create New Group or Join Existing
+  ├─ Create New: enter group name + currency → group row + group_memberships(role=admin) inserted
+  └─ Join Existing (Phase 3): enter invite code → group_memberships(role=member) inserted
+  ↓
+Redirect to Dashboard
 ```
+
+> Note: in the MVP (Phase 1), only "Create New" is offered. The "Join Existing" branch is enabled in Phase 3 when invitations ship.
 
 ### Flow 2: Adding an Expense
 
@@ -210,7 +217,7 @@ Dashboard updates to show:
 - Password input field (with show/hide toggle)
 - "Remember me" checkbox
 - "Login" button (primary action)
-- "Forgot password?" link
+- "Forgot password?" link _(Phase 3 — depends on the email service decision; in MVP, link is hidden or shows a "contact support" hint)_
 - "Don't have an account? Sign up" link
 
 **Registration Screen**
@@ -236,7 +243,7 @@ Dashboard updates to show:
 
 **Header Section**
 - App logo/name
-- Group selector dropdown (if user belongs to multiple groups)
+- Group selector dropdown (populated from the user's `group_memberships`; visible if the user has 2+ memberships)
 - User profile icon (click → settings menu)
 - Notification icon (future)
 
@@ -348,13 +355,14 @@ Dashboard updates to show:
 - Currency
 - Total members
 
-**Members List**
+**Members List** (sourced from `group_memberships` joined with `users`)
 - Each member card shows:
   - Name
   - Email
-  - Role: Admin | Member
-  - Total transactions count
+  - Role: Admin | Member (read from `group_memberships.role`)
+  - Total transactions count (excludes other members' personal transactions)
   - Actions (admin only): Remove, Change role
+- Admin actions update the corresponding `group_memberships` row (last admin cannot be removed/demoted).
 
 **Invitation Section**
 - "Invite New Member" button
@@ -388,8 +396,8 @@ Dashboard updates to show:
 - Budget alert preferences
 
 **Data**
-- Export all data (CSV/JSON)
-- Delete account
+- Export all data (CSV/JSON) _(Phase 4)_
+- Delete account _(Phase 5+ — not in MVP; until then, account closure is a manual operator action)_
 
 **About**
 - App version
@@ -397,7 +405,10 @@ Dashboard updates to show:
 - Privacy policy
 - Contact support
 
-## Design Guidelines for Figma
+## Design Guidelines
+
+> The full UI workflow lives in [`../implementation-details/CLAUDE_DESIGN_GUIDE.md`](../implementation-details/CLAUDE_DESIGN_GUIDE.md). The tokens below are the canonical source for the MUI theme.
+
 
 ### Color Palette
 
@@ -478,33 +489,15 @@ Dashboard updates to show:
 - Keyboard navigation support
 - Screen reader labels for all interactive elements
 
-## Figma Design Deliverables Checklist
+## UI Build Deliverables (Claude-driven)
 
-### Phase 1: Wireframes
-- [ ] User flow diagrams
-- [ ] Low-fidelity wireframes for all core screens
-- [ ] Navigation structure
-- [ ] Responsive layouts (mobile, tablet, desktop)
+The "design phase" is replaced by direct React + MUI implementation in `src/`. Track UI completion per screen using the **Definition of Done** in `CLAUDE_DESIGN_GUIDE.md`:
 
-### Phase 2: High-Fidelity Mockups
-- [ ] Design system/component library
-- [ ] All screens in light mode
-- [ ] All screens in dark mode (optional for MVP)
-- [ ] Micro-interactions and animations
-- [ ] Loading and error states
-- [ ] Empty states
-
-### Phase 3: Prototype
-- [ ] Interactive prototype with navigation
-- [ ] Key user flows clickable
-- [ ] Transition animations
-- [ ] User testing ready
-
-### Phase 4: Design Specs
-- [ ] Export design tokens (colors, typography, spacing)
-- [ ] Component specifications
-- [ ] Developer handoff documentation
-- [ ] Asset exports (icons, images)
+- [ ] Theme + design tokens implemented in `src/theme/`
+- [ ] Layout primitives (`AppShell`, `PageContainer`) and form primitives built
+- [ ] Each screen in `PRODUCT_SPEC.md` implemented with light + dark mode, loading / empty / error states, verified at 375 / 768 / 1440 px
+- [ ] Accessibility audit passes (axe-core or Lighthouse, WCAG 2.1 AA)
+- [ ] Theme tokens exported as JSON for Phase 2 Android handoff
 
 ## Technical Considerations
 
@@ -575,6 +568,6 @@ Dashboard updates to show:
 
 1. Review and finalize product specification
 2. Answer open questions with stakeholders
-3. Create Figma designs based on this spec
-4. Validate designs with potential users
-5. Begin technical implementation (see IMPLEMENTATION_ROADMAP.md)
+3. Stand up the React + MUI app skeleton with the design tokens in `src/theme/`
+4. Build screens directly with Claude per `CLAUDE_DESIGN_GUIDE.md`, validating each in the running dev server
+5. Continue technical implementation (see `IMPLEMENTATION_ROADMAP.md`)
